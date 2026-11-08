@@ -10,12 +10,29 @@
 ## ✨ Overview
 Features is a modular toolkit for adventure maps and servers. Turn modules on or off from an in-game menu and keep only what your map needs. Many admin options stay locked to operators on dedicated servers.
 
+<p align="center">
+<img src="https://media.forgecdn.net/attachments/2025/713/2026-10-08_14-07-18-png.png" alt="Features menu" width="560">
+</p>
+
 ## 🧩 Features
 **Inventory Revamp** starts you with the hotbar only; better armor unlocks more slots. **Mob Spawn Block** stops selected mobs from spawning. **Border Danger Zone** applies damage or effects near the world border.
 
+<p align="center">
+<img src="https://media.forgecdn.net/attachments/2025/730/2026-10-08_14-07-46-png.png" alt="Mob spawn block settings" width="420">
+<img src="https://media.forgecdn.net/attachments/2025/731/2026-10-08_14-11-24-png.png" alt="Border danger zone settings" width="420">
+</p>
+
 **HUD Hide** can clear hearts, hunger, armor, hotbar, XP, effects, or the crosshair. **F3 Hide** cleans up the debug screen. **Hide Names** removes player name tags. **True Night** makes nights truly dark while torches and the moon still help.
 
+<p align="center">
+<img src="https://media.forgecdn.net/attachments/2025/716/2026-10-08_14-08-30-png.png" alt="F3 Hide settings" width="420">
+</p>
+
 **Local Chat** keeps talk nearby by default; start a message with `!` for global. **Wetness** soaks you in rain, snow, and water — wet armor slows you down; dry on land or by heat, or you may freeze. **Item Remover** lets operators ban items from crafting, loot, and inventories.
+
+<p align="center">
+<img src="https://media.forgecdn.net/attachments/2025/717/2026-10-08_14-08-34-png.png" alt="Item remover settings" width="420">
+</p>
 
 Pairs optionally with [YBLK Fashion](https://www.curseforge.com/minecraft/mc-mods/yblk-fashion) for extra inventory slots while clothes are worn.
 
