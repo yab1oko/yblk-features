@@ -1,0 +1,31 @@
+Features is a modular toolkit for adventure maps and servers. Turn modules on or off from an in-game menu and use only what your map needs.
+
+Requires Cloth Config API:
+https://www.curseforge.com/minecraft/mc-mods/cloth-config
+
+=== What you get ===
+
+• Inventory Revamp — start with the hotbar only; better armor unlocks more slots.
+• Mob Spawn Block — stop selected mobs from spawning.
+• Border Danger Zone — damage or effects near the world border.
+• HUD Hide — hide hearts, hunger, armor, hotbar, XP, effects, or crosshair.
+• F3 Hide — clean up the debug screen.
+• Hide Names — hide player name tags.
+• True Night — nights get truly dark; torches and the moon still help.
+• Local Chat — nearby chat by default; start a message with ! for global.
+• Wetness — rain, snow, and water soak you; armor slows when wet; dry on land or by heat, or you may freeze.
+• Item Remover — ban items from crafting, loot, and inventories (operators).
+
+=== How to use ===
+
+1. Install Forge 1.20.1, Cloth Config, and this mod.
+2. Open the pause menu and click Features.
+3. Enable the modules you want and open their settings.
+
+Many admin options are locked to operators on dedicated servers.
+
+=== Compat ===
+
+• Minecraft 1.20.1
+• Forge
+• Cloth Config API (required)

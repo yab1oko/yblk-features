@@ -1,0 +1,32 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "yblk.features.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "features.refmap.json",
+  "mixins": [
+    "AbstractContainerMenuAccessor",
+    "InventoryMenuMixin",
+    "SlotMixin"
+  ],
+  "client": [
+    "AbstractContainerScreenMixin",
+    "CapeLayerMixin",
+    "CustomHeadLayerMixin",
+    "ElytraLayerMixin",
+    "ForgeGuiMixin",
+    "GuiMixin",
+    "HumanoidArmorLayerMixin",
+    "ItemInHandLayerMixin",
+    "InventoryScreenMixin",
+    "LevelMixin",
+    "LevelRendererMixin",
+    "LightTextureMixin",
+    "PlayerModelMixin",
+    "PostChainAccessor",
+    "PostPassAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

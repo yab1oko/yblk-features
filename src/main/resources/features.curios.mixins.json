@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "yblk.features.mixin.curios",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "features.refmap.json",
+  "mixins": [
+    "CuriosContainerMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
