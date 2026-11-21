@@ -85,14 +85,14 @@ Settings
 
 ## Description
 
-After you upload the images, paste this. The two `<img>` lines still point at the repo until you swap in forgecdn URLs.
+After you upload the images, paste this into the description editor's **Source code** view (the `...` menu). The visual editor rewrites the header: it drops centering, merges the four chips into one plate, and prints the GitHub link as literal `[GitHub](url)`. The two `<img>` lines still point at the repo until you swap in forgecdn URLs.
 
 ````markdown
 <h1 align="center">Features</h1>
 <p align="center"><b>Toggleable gameplay modules for adventure maps and servers.</b></p>
 
 <p align="center">
-<code>Minecraft 1.20.1</code> · <code>Forge</code> · <code>Client & Server</code> · <code><a href="https://github.com/yab1oko/yblk-features">GitHub</a></code>
+<code>Minecraft 1.20.1</code> · <code>Forge</code> · <code>Client &amp; Server</code> · <a href="https://github.com/yab1oko/yblk-features"><code>GitHub</code></a>
 </p>
 
 ---

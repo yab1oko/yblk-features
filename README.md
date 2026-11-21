@@ -2,7 +2,7 @@
 <p align="center"><b>Toggleable gameplay modules for adventure maps and servers.</b></p>
 
 <p align="center">
-<code>Minecraft 1.20.1</code> · <code>Forge</code> · <code>Client &amp; Server</code> · <code><a href="https://github.com/yab1oko/yblk-features">GitHub</a></code>
+<code>Minecraft 1.20.1</code> · <code>Forge</code> · <code>Client &amp; Server</code> · <a href="https://github.com/yab1oko/yblk-features"><code>GitHub</code></a>
 </p>
 
 ---
@@ -33,7 +33,7 @@ The menu groups modules into Player, Interface, World, Mobs, Restrictions, and S
 
 **Server.** Server Tweaks covers a colored MOTD, a server-list icon, join and leave lines, rules, the tab list, kits, roles, mute, kick, ban, freeze, vanish, and a look at a player's inventory. Each anti-cheat check stays off until you enable it, and each one can log, tell operators, or kick.
 
-Settings rows have a tooltip, a gold dot when a value left its default, and a Reset button for that screen's toggles and numbers. Lists on the right can be dragged. Closing Item Weight or Server Tweaks with unsaved text asks you to save or discard.
+Settings rows have a tooltip, a gold dot when a value left its default, and a Reset button for that screen's toggles and numbers. Lists on the right can be dragged.
 
 ## 🎮 How to use
 
