@@ -8,8 +8,16 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.TextField;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SearchableEntryList;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.network.ItemRemoverConfigPacket;
 import yblk.features.network.ModNetwork;
+import yblk.features.config.FeaturesConfig;
+import yblk.features.config.FeaturesConfig.ItemBan;
 import yblk.features.remover.ItemRemover;
 import yblk.features.remover.ItemRemoverCatalog;
 import yblk.features.remover.ItemRemoverCatalog.Entry;
@@ -17,7 +25,7 @@ import yblk.features.remover.ItemRemoverCatalog.Entry;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ItemRemoverSettingsScreen extends Screen {
+public class ItemRemoverSettingsScreen extends BaseSettingsScreen {
     private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFFC96060;
     private static final int ROW_H = 22;
@@ -26,8 +34,8 @@ public class ItemRemoverSettingsScreen extends Screen {
     private static final int CHECK_FRAME = 0xFFE8E8F0;
     private static final int CHECK_CROSS = 0xFFE05050;
 
-    private final Screen parent;
     private String searchQuery = "";
+    private final SearchableEntryList<Entry> catalog = new SearchableEntryList<>();
     private List<Entry> entries = List.of();
     private int selectedIndex;
     private int scrollOffset;
@@ -39,10 +47,11 @@ public class ItemRemoverSettingsScreen extends Screen {
     private int previewRight;
     private EditBox searchBox;
     private boolean canEdit;
+    private int flagTop;
+    private boolean flagsVisible;
 
     public ItemRemoverSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".item_remover"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".item_remover"), parent);
     }
 
     @Override
@@ -59,7 +68,7 @@ public class ItemRemoverSettingsScreen extends Screen {
         previewLeft = listLeft + listWidth + 16;
         previewRight = width - 16;
 
-        searchBox = new EditBox(font, listLeft, contentTop, listWidth, 18,
+        searchBox = new TextField(font, listLeft, contentTop, listWidth, 18,
                 Component.translatable("screen." + Features.MODID + ".item_remover.search"));
         searchBox.setMaxLength(64);
         searchBox.setValue(searchQuery);
@@ -76,13 +85,13 @@ public class ItemRemoverSettingsScreen extends Screen {
         int gap = 6;
         int btnW = (previewW - gap) / 2;
         if (canEdit) {
-            addRenderableWidget(new DarkButton(previewLeft, contentTop, btnW, 20,
+            addRenderableWidget(darkButton(previewLeft, contentTop, btnW, 20,
                     Component.translatable("screen." + Features.MODID + ".item_remover.allow_all"),
                     () -> {
                         ItemRemoverCatalog.setAllBanned(entries, false);
                         push();
                     }));
-            addRenderableWidget(new DarkButton(previewLeft + btnW + gap, contentTop, btnW, 20,
+            addRenderableWidget(darkButton(previewLeft + btnW + gap, contentTop, btnW, 20,
                     Component.translatable("screen." + Features.MODID + ".item_remover.ban_all"),
                     () -> {
                         ItemRemoverCatalog.setAllBanned(entries, true);
@@ -90,7 +99,7 @@ public class ItemRemoverSettingsScreen extends Screen {
                     }));
         }
 
-        addRenderableWidget(new DarkButton(width / 2 - 50, height - 28, 100, 20,
+        addRenderableWidget(darkButton(width / 2 - 50, height - 28, 100, 20,
                 Component.translatable("gui.done"), this::onClose));
 
         refreshEntries();
@@ -114,16 +123,15 @@ public class ItemRemoverSettingsScreen extends Screen {
     }
 
     private static void drawCheckBox(GuiGraphics graphics, int x, int y, boolean banned) {
-        graphics.fill(x, y, x + CHECK_SIZE, y + 1, CHECK_FRAME);
-        graphics.fill(x, y + CHECK_SIZE - 1, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_FRAME);
-        graphics.fill(x, y, x + 1, y + CHECK_SIZE, CHECK_FRAME);
-        graphics.fill(x + CHECK_SIZE - 1, y, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_FRAME);
-        if (banned) {
-            for (int i = 2; i < CHECK_SIZE - 2; i++) {
-                graphics.fill(x + i, y + i, x + i + 1, y + i + 1, CHECK_CROSS);
-                graphics.fill(x + CHECK_SIZE - 1 - i, y + i, x + CHECK_SIZE - i, y + i + 1, CHECK_CROSS);
-            }
-        }
+        Checks.cross(graphics, x, y, CHECK_SIZE, banned, CHECK_CROSS);
+    }
+
+    private void drawFlag(GuiGraphics graphics, int x, int y, boolean on, String key) {
+        Checks.box(graphics, x, y, CHECK_SIZE, on, ACCENT);
+        String text = Component.translatable(key).getString();
+        int max = Math.max(8, previewRight - x - CHECK_SIZE - 16);
+        graphics.drawString(font, font.plainSubstrByWidth(text, max), x + CHECK_SIZE + 6, y + 1,
+                on ? 0xF0F0F0 : 0x9A9AA8, false);
     }
 
     @Override
@@ -140,32 +148,30 @@ public class ItemRemoverSettingsScreen extends Screen {
         graphics.fill(listLeft - 2, listTop - 2, listLeft + listWidth + 2, listTop + listHeight + 2, PANEL);
         FeaturesScreen.drawGradientBorder(graphics, listLeft - 2, listTop - 2, listWidth + 4, listHeight + 4, ACCENT, 0xFF0A0A0E);
 
-        int visible = Math.max(1, listHeight / ROW_H);
-        for (int i = 0; i < visible; i++) {
-            int index = scrollOffset + i;
-            if (index >= entries.size()) {
-                break;
-            }
-            Entry entry = entries.get(index);
-            int rowY = listTop + i * ROW_H;
-            boolean selected = index == selectedIndex;
-            boolean hovered = mouseX >= listLeft && mouseX < listLeft + listWidth
-                    && mouseY >= rowY && mouseY < rowY + ROW_H;
-            if (selected) {
-                graphics.fill(listLeft, rowY, listLeft + listWidth, rowY + ROW_H, 0xFF3A2A2A);
-            } else if (hovered) {
-                graphics.fill(listLeft, rowY, listLeft + listWidth, rowY + ROW_H, 0xFF1E1E26);
-            }
-
-            int checkX = listLeft + LIST_PAD;
-            int checkY = rowY + (ROW_H - CHECK_SIZE) / 2;
-            drawCheckBox(graphics, checkX, checkY, entry.isBanned());
-
+        catalog.left = listLeft;
+        catalog.top = listTop;
+        catalog.width = listWidth;
+        catalog.height = listHeight;
+        catalog.rowHeight = ROW_H;
+        catalog.scroll = scrollOffset;
+        catalog.selectedIndex = selectedIndex;
+        catalog.selectedColor = 0xFF3A2A2A;
+        catalog.hoverColor = 0xFF1E1E26;
+        catalog.setEntries(entries);
+        catalog.render(graphics, mouseX, mouseY, (row, g) -> {
+            Entry entry = row.entry();
+            int checkX = row.x() + LIST_PAD;
+            int checkY = row.y() + (ROW_H - CHECK_SIZE) / 2;
+            drawCheckBox(g, checkX, checkY, entry.isBanned());
             int iconX = checkX + CHECK_SIZE + 4;
-            graphics.renderItem(entry.stack(), iconX, rowY + 3);
-            graphics.drawString(font, entry.stack().getHoverName(), iconX + 18, rowY + 7,
-                    selected ? 0xF0F0F0 : 0xB8B8C0, false);
-        }
+            g.renderItem(entry.stack(), iconX, row.y() + 3);
+            g.drawString(font, entry.stack().getHoverName(), iconX + 18, row.y() + 7,
+                    row.selected() ? 0xF0F0F0 : 0xB8B8C0, false);
+            tip(row.x(), row.y(), listWidth, ROW_H,
+                    Component.translatable("screen." + Features.MODID + ".item_remover.row.tip"));
+        });
+        ScrollBar.draw(graphics, listLeft + listWidth + 8, listTop, listTop + listHeight, scrollOffset, maxScroll(), ACCENT,
+                v -> scrollOffset = v);
 
         graphics.fill(previewLeft, listTop - 2, previewRight, listTop + listHeight + 2, PANEL);
         FeaturesScreen.drawGradientBorder(graphics,
@@ -189,6 +195,27 @@ public class ItemRemoverSettingsScreen extends Screen {
                     : "screen." + Features.MODID + ".item_remover.allowed";
             int statusColor = selected.isBanned() ? 0xFFC96060 : 0xFF4EC9B0;
             graphics.drawCenteredString(font, Component.translatable(statusKey), cx, listTop + 110, statusColor);
+            flagsVisible = selected.isBanned();
+            flagTop = listTop + 128;
+            if (flagsVisible) {
+                ItemBan ban = FeaturesConfig.itemBan(selected.id());
+                if (ban != null) {
+                    drawFlag(graphics, previewLeft + 12, flagTop, ban.inventory,
+                            "screen." + Features.MODID + ".item_remover.inventory");
+                    drawFlag(graphics, previewLeft + 12, flagTop + 16, ban.recipes,
+                            "screen." + Features.MODID + ".item_remover.recipes");
+                    drawFlag(graphics, previewLeft + 12, flagTop + 32, ban.loot,
+                            "screen." + Features.MODID + ".item_remover.loot");
+                    tipKey(previewLeft + 12, flagTop, previewRight - previewLeft - 24, 14,
+                            "screen." + Features.MODID + ".item_remover.inventory");
+                    tipKey(previewLeft + 12, flagTop + 16, previewRight - previewLeft - 24, 14,
+                            "screen." + Features.MODID + ".item_remover.recipes");
+                    tipKey(previewLeft + 12, flagTop + 32, previewRight - previewLeft - 24, 14,
+                            "screen." + Features.MODID + ".item_remover.loot");
+                }
+            }
+        } else {
+            flagsVisible = false;
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
@@ -196,6 +223,28 @@ public class ItemRemoverSettingsScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && canEdit && flagsVisible && !entries.isEmpty()
+                && mouseX >= previewLeft && mouseX < previewRight
+                && mouseY >= flagTop && mouseY < flagTop + 48) {
+            int row = (int) ((mouseY - flagTop) / 16);
+            Entry selected = entries.get(selectedIndex);
+            ItemBan ban = FeaturesConfig.itemBan(selected.id());
+            if (ban != null && row >= 0 && row < 3) {
+                String flag = switch (row) {
+                    case 0 -> "inventory";
+                    case 1 -> "recipes";
+                    default -> "loot";
+                };
+                boolean next = switch (row) {
+                    case 0 -> !ban.inventory;
+                    case 1 -> !ban.recipes;
+                    default -> !ban.loot;
+                };
+                FeaturesConfig.setItemFlag(selected.id(), flag, next);
+                push();
+            }
+            return true;
+        }
         if (button == 0 && canEdit && mouseX >= listLeft && mouseX < listLeft + listWidth
                 && mouseY >= listTop && mouseY < listTop + listHeight) {
             int row = (int) ((mouseY - listTop) / ROW_H);
@@ -228,48 +277,14 @@ public class ItemRemoverSettingsScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
+
     @Override
-    public void renderBackground(GuiGraphics graphics) {
-        FeatureSettingsBackdrop.render(graphics, width, height);
+    protected int buttonAccent() {
+        return ACCENT;
     }
 
     @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
-
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF3A2A2A : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    protected int buttonHover() {
+        return 0xFF3A2A2A;
     }
 }

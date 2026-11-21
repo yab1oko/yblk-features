@@ -9,6 +9,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import yblk.features.Features;
+import yblk.features.client.ui.Tooltips;
 
 public class FeaturesPauseButton extends AbstractWidget {
     private static final ResourceLocation WIDGETS = new ResourceLocation("textures/gui/widgets.png");
@@ -37,7 +38,7 @@ public class FeaturesPauseButton extends AbstractWidget {
                 0f, 0f, ICON_TEX, ICON_TEX, ICON_TEX, ICON_TEX);
 
         if (isHoveredOrFocused()) {
-            graphics.renderTooltip(Minecraft.getInstance().font, getMessage(), mouseX, mouseY);
+            Tooltips.show(graphics, Minecraft.getInstance().font, getMessage(), mouseX, mouseY);
         }
     }
 

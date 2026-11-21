@@ -8,6 +8,10 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.NumberField;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.config.FeaturesConfig;
 import yblk.features.network.ModNetwork;
 import yblk.features.network.WetnessConfigPacket;
@@ -15,16 +19,14 @@ import yblk.features.wetness.WetnessAccess;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Consumer;
 
-public class WetnessSettingsScreen extends Screen {
+public class WetnessSettingsScreen extends BaseSettingsScreen {
     private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFF4A9EBF;
     private static final int ROW = 16;
     private static final int PANEL_W = 360;
 
-    private final Screen parent;
     private final List<EditBox> boxes = new ArrayList<>();
     private boolean canEdit;
     private int panelL;
@@ -36,8 +38,7 @@ public class WetnessSettingsScreen extends Screen {
     private int contentH;
 
     public WetnessSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".wetness"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".wetness"), parent);
     }
 
     @Override
@@ -94,73 +95,59 @@ public class WetnessSettingsScreen extends Screen {
         maxScroll = Math.max(0, contentH - Math.max(1, panelBottom - panelTop - 16));
         scroll = Mth.clamp(scroll, 0, maxScroll);
 
-        addRenderableWidget(new DarkButton(width / 2 - 45, height - bottomPad - btnH, 90, btnH,
+        addRenderableWidget(darkButton(width / 2 - 96, height - bottomPad - btnH, 90, btnH,
+                Component.translatable("screen." + Features.MODID + ".reset_section"), this::resetSection));
+        addRenderableWidget(darkButton(width / 2 + 6, height - bottomPad - btnH, 90, btnH,
                 Component.translatable("gui.done"), this::onClose));
     }
 
     private void addRateBox(float value, Consumer<Float> setter) {
-        EditBox box = new EditBox(font, 0, 0, 48, 14, Component.empty());
-        box.setMaxLength(6);
-        box.setValue(fmt(value));
-        box.setEditable(canEdit);
-        box.setResponder(raw -> {
-            if (!canEdit || raw == null || raw.isBlank()) {
-                return;
-            }
-            try {
-                setter.accept(Float.parseFloat(raw.trim()));
-            } catch (NumberFormatException ignored) {
-            }
-        });
-        boxes.add(box);
+        boxes.add(NumberField.decimal(font, value, canEdit, setter));
     }
 
     private void addPctBox(float value, Consumer<Float> setter) {
-        EditBox box = new EditBox(font, 0, 0, 48, 14, Component.empty());
-        box.setMaxLength(5);
-        box.setValue(String.format(Locale.ROOT, "%d", Math.round(value * 100f)));
-        box.setEditable(canEdit);
-        box.setResponder(raw -> {
-            if (!canEdit || raw == null || raw.isBlank()) {
-                return;
-            }
-            try {
-                setter.accept(Mth.clamp(Float.parseFloat(raw.trim()) / 100f, 0f, 1f));
-            } catch (NumberFormatException ignored) {
-            }
-        });
-        boxes.add(box);
+        boxes.add(NumberField.percent(font, value, canEdit, setter));
     }
 
     private void addIntBox(int value, int min, int max, Consumer<Integer> setter) {
-        EditBox box = new EditBox(font, 0, 0, 48, 14, Component.empty());
-        box.setMaxLength(5);
-        box.setValue(Integer.toString(value));
-        box.setEditable(canEdit);
-        box.setFilter(s -> s.isEmpty() || s.chars().allMatch(Character::isDigit));
-        box.setResponder(raw -> {
-            if (!canEdit || raw == null || raw.isBlank()) {
-                return;
-            }
-            try {
-                setter.accept(Mth.clamp(Integer.parseInt(raw.trim()), min, max));
-            } catch (NumberFormatException ignored) {
-            }
-        });
-        boxes.add(box);
+        boxes.add(NumberField.integer(font, value, min, max, canEdit, setter));
+    }
+
+    private boolean nearDefault(int index) {
+        float[] defaults = {1f, 1f, 1.5f, 2f, 3f, 4f, 240f, 0.20f};
+        float value = switch (index) {
+            case 0 -> FeaturesConfig.wetnessRainRate;
+            case 1 -> FeaturesConfig.wetnessDryRate;
+            case 2 -> FeaturesConfig.wetnessHeatTorch;
+            case 3 -> FeaturesConfig.wetnessHeatFire;
+            case 4 -> FeaturesConfig.wetnessHeatLava;
+            case 5 -> FeaturesConfig.wetnessHeatRadius;
+            case 6 -> FeaturesConfig.wetnessFreezeSeconds;
+            default -> FeaturesConfig.wetnessArmorSlow;
+        };
+        return Math.abs(value - defaults[index]) < 0.011f;
+    }
+
+    private void resetSection() {
+        if (!canEdit) {
+            return;
+        }
+        FeaturesConfig.setWetnessRainRate(1f);
+        FeaturesConfig.setWetnessDryRate(1f);
+        FeaturesConfig.setWetnessHeatTorch(1.5f);
+        FeaturesConfig.setWetnessHeatFire(2f);
+        FeaturesConfig.setWetnessHeatLava(3f);
+        FeaturesConfig.setWetnessHeatRadius(4);
+        FeaturesConfig.setWetnessFreezeSeconds(240);
+        FeaturesConfig.setWetnessArmorSlow(0.20f);
+        push();
+        rebuildWidgets();
     }
 
     private void push() {
         if (canEdit) {
             ModNetwork.sendToServer(WetnessConfigPacket.current());
         }
-    }
-
-    private static String fmt(float v) {
-        if (Math.abs(v - Math.round(v)) < 0.001f) {
-            return Integer.toString(Math.round(v));
-        }
-        return String.format(Locale.ROOT, "%.1f", v);
     }
 
     @Override
@@ -204,6 +191,8 @@ public class WetnessSettingsScreen extends Screen {
             EditBox box = boxes.get(i);
             graphics.drawString(font, Component.translatable(keys[i]), x, y + 3,
                     canEdit ? 0xC8C8D0 : 0x606068, false);
+            dirtyDot(graphics, x - 6, y + 4, !nearDefault(i));
+            tipKey(x, y, panelR - 12 - x, ROW, keys[i]);
             box.setX(panelR - 12 - box.getWidth());
             box.setY(y);
             boolean visible = y + 14 > panelTop + 2 && y < panelBottom - 2;
@@ -214,6 +203,7 @@ public class WetnessSettingsScreen extends Screen {
         }
 
         graphics.disableScissor();
+        ScrollBar.draw(graphics, panelR, panelTop, panelBottom, scroll, maxScroll, ACCENT, v -> scroll = v);
 
         for (var child : children()) {
             if (child instanceof AbstractWidget widget) {
@@ -232,48 +222,14 @@ public class WetnessSettingsScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
+
     @Override
-    public void renderBackground(GuiGraphics graphics) {
-        FeatureSettingsBackdrop.render(graphics, width, height);
+    protected int buttonAccent() {
+        return ACCENT;
     }
 
     @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
-
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A48 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    protected int buttonHover() {
+        return 0xFF2A3A48;
     }
 }

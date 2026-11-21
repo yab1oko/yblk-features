@@ -48,13 +48,7 @@ public final class ItemRemoverCatalog {
     }
 
     public static void setBanned(ResourceLocation id, boolean banned) {
-        Set<String> next = new HashSet<>(FeaturesConfig.bannedItemIds);
-        if (banned) {
-            next.add(id.toString());
-        } else {
-            next.remove(id.toString());
-        }
-        FeaturesConfig.setBannedItemIds(next);
+        FeaturesConfig.setItemBanned(id, banned);
     }
 
     public static void setAllBanned(List<Entry> entries, boolean banned) {

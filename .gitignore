@@ -8,7 +8,9 @@ run-data/
 *.ipr
 *.iws
 .vscode/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 libs/
 *.log
 *.jar

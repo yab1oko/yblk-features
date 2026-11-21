@@ -17,9 +17,13 @@ import yblk.features.inventory.ExtraInventoryCapability;
 import yblk.features.inventory.InventoryRevampEvents;
 import yblk.features.network.ModNetwork;
 import yblk.features.remover.ItemRemoverEvents;
+import yblk.features.restrict.RestrictionsEvents;
+import yblk.features.remover.ItemRemoverLoot;
 import yblk.features.spawn.MobSpawnEvents;
 import yblk.features.wetness.WetnessCapability;
 import yblk.features.wetness.WetnessEvents;
+import yblk.features.world.FeaturesCommands;
+import yblk.features.world.WorldEvents;
 
 @Mod(Features.MODID)
 public class Features {
@@ -29,6 +33,8 @@ public class Features {
     public Features() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         FeatureRegistry.bootstrap();
+        ItemRemoverLoot.MODIFIERS.register(modBus);
+        modBus.addListener(ItemRemoverEvents::onBuildCreativeTab);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, FeaturesConfig.SPEC);
         modBus.addListener(ExtraInventoryCapability::register);
         modBus.addListener(WetnessCapability::register);
@@ -40,6 +46,9 @@ public class Features {
         MinecraftForge.EVENT_BUS.register(new LocalChatEvents());
         MinecraftForge.EVENT_BUS.register(new WetnessEvents());
         MinecraftForge.EVENT_BUS.register(new ItemRemoverEvents());
+        MinecraftForge.EVENT_BUS.register(new RestrictionsEvents());
+        MinecraftForge.EVENT_BUS.register(new WorldEvents());
+        MinecraftForge.EVENT_BUS.register(new FeaturesCommands());
         LOGGER.info("Features loaded");
     }
 

@@ -121,6 +121,14 @@ repositories {
         name = "Illusive Soulworks"
         url = "https://maven.theillusivec4.top/"
     }
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com/"
+    }
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/releases/"
+    }
 }
 
 mixin {
@@ -135,6 +143,10 @@ dependencies {
     // Optional at runtime; compileOnly so CuriosContainer mixin can target the class.
     compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}:api")
     compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}")
+    // Optional viewers. Classes load only when that mod is installed.
+    compileOnly "mezz.jei:jei-1.20.1-forge:15.75.0.238"
+    compileOnly "me.shedaniel:RoughlyEnoughItems-forge:12.1.785"
+    compileOnly "dev.emi:emi-forge:1.1.10+1.20.1"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 

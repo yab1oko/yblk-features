@@ -1,44 +1,50 @@
 package yblk.features.remover;
 
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.level.ItemLike;
-import net.minecraft.world.level.storage.loot.LootPool;
-import net.minecraft.world.level.storage.loot.LootTable;
-import net.minecraft.world.level.storage.loot.entries.LootItem;
-import net.minecraft.world.level.storage.loot.entries.LootPoolEntryContainer;
-import net.minecraftforge.event.LootTableLoadEvent;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.item.trading.MerchantOffers;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
+import net.minecraftforge.event.OnDatapackSyncEvent;
+import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import yblk.features.compat.CuriosItemRemover;
 import yblk.features.inventory.ExtraInventory;
 import yblk.features.inventory.ExtraInventoryCapability;
 import yblk.features.network.ItemRemoverConfigPacket;
 import yblk.features.network.ModNetwork;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class ItemRemoverEvents {
-    private static Field lootTablePoolsField;
-    private static Field lootPoolEntriesField;
-    private static Field lootItemField;
+    private static final String TRADE_BACKUP = "features:trade_backup";
+    private static List<Recipe<?>> sourceRecipes = List.of();
 
     @SubscribeEvent
     public void onLogin(PlayerEvent.PlayerLoggedInEvent event) {
@@ -50,7 +56,16 @@ public class ItemRemoverEvents {
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        filterRecipes(event.getServer());
+        filterRecipes(event.getServer(), true);
+    }
+
+    @SubscribeEvent
+    public void onDatapack(OnDatapackSyncEvent event) {
+        if (event.getPlayer() != null) {
+            return;
+        }
+        MinecraftServer server = event.getPlayerList().getServer();
+        filterRecipes(server, true);
     }
 
     @SubscribeEvent
@@ -67,85 +82,139 @@ public class ItemRemoverEvents {
         purgeInventory(event.player);
     }
 
+    @SubscribeEvent
+    public void onLevelTick(TickEvent.LevelTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || event.level.isClientSide || !ItemRemover.isActive()) {
+            return;
+        }
+        if (event.level.getGameTime() % 40L != 0L || !(event.level instanceof ServerLevel level)) {
+            return;
+        }
+        AABB box = loadedBox(level);
+        for (ItemEntity entity : level.getEntitiesOfClass(ItemEntity.class, box,
+                item -> ItemRemover.removesFromInventory(item.getItem()))) {
+            entity.discard();
+        }
+        for (AbstractVillager villager : level.getEntitiesOfClass(AbstractVillager.class, box)) {
+            syncVillagerTrades(villager);
+        }
+    }
+
     @SubscribeEvent(priority = EventPriority.HIGH)
     public void onItemJoin(EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide || !ItemRemover.isActive()) {
             return;
         }
-        if (event.getEntity() instanceof ItemEntity itemEntity && ItemRemover.isBanned(itemEntity.getItem())) {
+        if (event.getEntity() instanceof ItemEntity itemEntity && ItemRemover.removesFromInventory(itemEntity.getItem())) {
             event.setCanceled(true);
         }
     }
 
-    @SubscribeEvent
-    public void onLootLoad(LootTableLoadEvent event) {
+    @SubscribeEvent(priority = EventPriority.HIGH)
+    public void onPickup(EntityItemPickupEvent event) {
+        if (!ItemRemover.removesFromInventory(event.getItem().getItem())) {
+            return;
+        }
+        event.setCanceled(true);
+        event.getItem().discard();
+    }
+
+    public static void onBuildCreativeTab(BuildCreativeModeTabContentsEvent event) {
         if (!ItemRemover.isActive()) {
             return;
         }
-        stripLootTable(event.getTable());
+        List<ItemStack> remove = new ArrayList<>();
+        for (var entry : event.getEntries()) {
+            if (ItemRemover.removesFromInventory(entry.getKey())) {
+                remove.add(entry.getKey());
+            }
+        }
+        for (ItemStack stack : remove) {
+            event.getEntries().remove(stack);
+        }
     }
 
     public static void onConfigChanged(MinecraftServer server) {
         if (server == null) {
             return;
         }
-        filterRecipes(server);
+        filterRecipes(server, false);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             purgeInventory(player);
+        }
+        for (ServerLevel level : server.getAllLevels()) {
+            AABB box = loadedBox(level);
+            for (AbstractVillager villager : level.getEntitiesOfClass(AbstractVillager.class, box)) {
+                syncVillagerTrades(villager);
+            }
         }
     }
 
     public static void purgeInventory(Player player) {
-        if (!ItemRemover.isActive()) {
+        if (!ItemRemover.isActive() || player == null) {
             return;
         }
         Inventory inv = player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (ItemRemover.isBanned(inv.getItem(i))) {
+            if (ItemRemover.removesFromInventory(inv.getItem(i))) {
                 inv.setItem(i, ItemStack.EMPTY);
             }
         }
-        if (ItemRemover.isBanned(player.getOffhandItem())) {
+        if (ItemRemover.removesFromInventory(player.getOffhandItem())) {
             player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
         }
         for (EquipmentSlot slot : EquipmentSlot.values()) {
-            if (slot.getType() == EquipmentSlot.Type.ARMOR && ItemRemover.isBanned(player.getItemBySlot(slot))) {
+            if (slot.getType() == EquipmentSlot.Type.ARMOR && ItemRemover.removesFromInventory(player.getItemBySlot(slot))) {
                 player.setItemSlot(slot, ItemStack.EMPTY);
             }
         }
         ExtraInventory extra = ExtraInventoryCapability.get(player);
         var handler = extra.getHandler();
         for (int i = 0; i < handler.getSlots(); i++) {
-            if (ItemRemover.isBanned(handler.getStackInSlot(i))) {
+            if (ItemRemover.removesFromInventory(handler.getStackInSlot(i))) {
                 handler.setStackInSlot(i, ItemStack.EMPTY);
             }
         }
-        if (player.containerMenu != null && ItemRemover.isBanned(player.containerMenu.getCarried())) {
-            player.containerMenu.setCarried(ItemStack.EMPTY);
-        }
-    }
-
-    public static void filterRecipes(MinecraftServer server) {
-        RecipeManager manager = server.getRecipeManager();
-        Collection<Recipe<?>> all = manager.getRecipes();
-        if (!ItemRemover.isActive()) {
-            return;
-        }
-        List<Recipe<?>> kept = new ArrayList<>(all.size());
-        for (Recipe<?> recipe : all) {
-            if (!involvesBanned(recipe, server)) {
-                kept.add(recipe);
+        Container ender = player.getEnderChestInventory();
+        for (int i = 0; i < ender.getContainerSize(); i++) {
+            if (ItemRemover.removesFromInventory(ender.getItem(i))) {
+                ender.setItem(i, ItemStack.EMPTY);
             }
         }
-        if (kept.size() != all.size()) {
-            manager.replaceRecipes(kept);
-            server.getPlayerList().broadcastAll(new ClientboundUpdateRecipesPacket(manager.getRecipes()));
+        CuriosItemRemover.purge(player);
+        AbstractContainerMenu menu = player.containerMenu;
+        if (menu != null) {
+            if (ItemRemover.removesFromInventory(menu.getCarried())) {
+                menu.setCarried(ItemStack.EMPTY);
+            }
+            for (Slot slot : menu.slots) {
+                if (ItemRemover.removesFromInventory(slot.getItem())) {
+                    slot.set(ItemStack.EMPTY);
+                }
+            }
         }
     }
 
-    private static boolean involvesBanned(Recipe<?> recipe, MinecraftServer server) {
+    public static void filterRecipes(MinecraftServer server, boolean recapture) {
+        RecipeManager manager = server.getRecipeManager();
+        if (recapture || sourceRecipes.isEmpty()) {
+            sourceRecipes = new ArrayList<>(manager.getRecipes());
+        }
+        List<Recipe<?>> kept = new ArrayList<>(sourceRecipes.size());
+        boolean active = ItemRemover.isActive();
+        for (Recipe<?> recipe : sourceRecipes) {
+            if (active && hidesRecipe(recipe, server)) {
+                continue;
+            }
+            kept.add(recipe);
+        }
+        manager.replaceRecipes(kept);
+        server.getPlayerList().broadcastAll(new ClientboundUpdateRecipesPacket(manager.getRecipes()));
+    }
+
+    private static boolean hidesRecipe(Recipe<?> recipe, MinecraftServer server) {
         ItemStack result = recipe.getResultItem(server.registryAccess());
-        if (ItemRemover.isBanned(result)) {
+        if (ItemRemover.hidesFromRecipes(result)) {
             return true;
         }
         for (Ingredient ingredient : recipe.getIngredients()) {
@@ -153,7 +222,7 @@ public class ItemRemoverEvents {
                 continue;
             }
             for (ItemStack stack : ingredient.getItems()) {
-                if (ItemRemover.isBanned(stack)) {
+                if (ItemRemover.hidesFromRecipes(stack)) {
                     return true;
                 }
             }
@@ -161,71 +230,87 @@ public class ItemRemoverEvents {
         return false;
     }
 
-    @SuppressWarnings("unchecked")
-    private static void stripLootTable(LootTable table) {
-        try {
-            if (lootTablePoolsField == null) {
-                lootTablePoolsField = findField(LootTable.class, "f_79109_", "pools");
+    public static void syncVillagerTrades(AbstractVillager villager) {
+        CompoundTag data = villager.getPersistentData();
+        MerchantOffers live = villager.getOffers();
+        MerchantOffers backup = readTrades(data);
+        if (backup.isEmpty() && !data.contains(TRADE_BACKUP)) {
+            for (MerchantOffer offer : live) {
+                backup.add(new MerchantOffer(offer.createTag()));
             }
-            List<LootPool> pools = (List<LootPool>) lootTablePoolsField.get(table);
-            if (pools == null) {
-                return;
+        }
+        for (MerchantOffer offer : live) {
+            MerchantOffer known = findDeal(backup, offer);
+            if (known == null) {
+                backup.add(new MerchantOffer(offer.createTag()));
+            } else {
+                backup.set(backup.indexOf(known), new MerchantOffer(offer.createTag()));
             }
-            for (LootPool pool : pools) {
-                stripPool(pool);
+        }
+        writeTrades(data, backup);
+        MerchantOffers visible = new MerchantOffers();
+        for (MerchantOffer offer : backup) {
+            if (!hidesTrade(offer)) {
+                visible.add(new MerchantOffer(offer.createTag()));
             }
-        } catch (Exception ignored) {
+        }
+        if (!sameDeals(live, visible)) {
+            villager.overrideOffers(visible);
         }
     }
 
-    private static void stripPool(LootPool pool) {
-        try {
-            if (lootPoolEntriesField == null) {
-                lootPoolEntriesField = findField(LootPool.class, "f_79023_", "entries");
-            }
-            LootPoolEntryContainer[] entries = (LootPoolEntryContainer[]) lootPoolEntriesField.get(pool);
-            if (entries == null || entries.length == 0) {
-                return;
-            }
-            List<LootPoolEntryContainer> kept = new ArrayList<>();
-            for (LootPoolEntryContainer entry : entries) {
-                if (!entryIsBanned(entry)) {
-                    kept.add(entry);
-                }
-            }
-            if (kept.size() != entries.length) {
-                lootPoolEntriesField.set(pool, kept.toArray(LootPoolEntryContainer[]::new));
-            }
-        } catch (Exception ignored) {
-        }
+    private static boolean hidesTrade(MerchantOffer offer) {
+        return ItemRemover.removesFromLoot(offer.getResult())
+                || ItemRemover.removesFromLoot(offer.getBaseCostA())
+                || ItemRemover.removesFromLoot(offer.getCostB());
     }
 
-    private static boolean entryIsBanned(LootPoolEntryContainer entry) {
-        if (!(entry instanceof LootItem lootItem)) {
+    private static MerchantOffer findDeal(MerchantOffers offers, MerchantOffer probe) {
+        for (MerchantOffer offer : offers) {
+            if (ItemStack.isSameItem(offer.getResult(), probe.getResult())
+                    && ItemStack.isSameItem(offer.getBaseCostA(), probe.getBaseCostA())
+                    && ItemStack.isSameItem(offer.getCostB(), probe.getCostB())) {
+                return offer;
+            }
+        }
+        return null;
+    }
+
+    private static boolean sameDeals(MerchantOffers left, MerchantOffers right) {
+        if (left.size() != right.size()) {
             return false;
         }
-        try {
-            if (lootItemField == null) {
-                lootItemField = findField(LootItem.class, "f_79566_", "item");
+        for (int i = 0; i < left.size(); i++) {
+            if (findDeal(right, left.get(i)) == null) {
+                return false;
             }
-            Object item = lootItemField.get(lootItem);
-            if (item instanceof ItemLike like) {
-                return ItemRemover.isBanned(like.asItem());
-            }
-        } catch (Exception ignored) {
         }
-        return false;
+        return true;
     }
 
-    private static Field findField(Class<?> owner, String srg, String mapped) throws NoSuchFieldException {
-        try {
-            Field field = ObfuscationReflectionHelper.findField(owner, srg);
-            field.setAccessible(true);
-            return field;
-        } catch (Exception ex) {
-            Field field = owner.getDeclaredField(mapped);
-            field.setAccessible(true);
-            return field;
+    private static MerchantOffers readTrades(CompoundTag data) {
+        MerchantOffers offers = new MerchantOffers();
+        if (!data.contains(TRADE_BACKUP, Tag.TAG_LIST)) {
+            return offers;
         }
+        ListTag list = data.getList(TRADE_BACKUP, Tag.TAG_COMPOUND);
+        for (int i = 0; i < list.size(); i++) {
+            offers.add(new MerchantOffer(list.getCompound(i)));
+        }
+        return offers;
+    }
+
+    private static void writeTrades(CompoundTag data, MerchantOffers offers) {
+        ListTag list = new ListTag();
+        for (MerchantOffer offer : offers) {
+            list.add(offer.createTag());
+        }
+        data.put(TRADE_BACKUP, list);
+    }
+
+    private static AABB loadedBox(Level level) {
+        return new AABB(
+                level.getWorldBorder().getMinX(), level.getMinBuildHeight(), level.getWorldBorder().getMinZ(),
+                level.getWorldBorder().getMaxX(), level.getMaxBuildHeight(), level.getWorldBorder().getMaxZ());
     }
 }

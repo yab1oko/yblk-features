@@ -20,6 +20,15 @@ final class FeatureSettingsScreens {
             case "local_chat" -> new LocalChatSettingsScreen(parent);
             case "wetness" -> new WetnessSettingsScreen(parent);
             case "item_remover" -> new ItemRemoverSettingsScreen(parent);
+            case "command_blocker" -> new CommandBlockerSettingsScreen(parent);
+            case "interaction_blocker" -> new InteractionBlockerSettingsScreen(parent);
+            case "tool_restrictions" -> new ToolRestrictionsSettingsScreen(parent);
+            case "portal_lock" -> new PortalLockSettingsScreen(parent);
+            case "elytra_rules" -> new ElytraRulesSettingsScreen(parent);
+            case "mob_drops" -> new MobDropsSettingsScreen(parent);
+            case "villager_trades" -> new VillagerTradesSettingsScreen(parent);
+            case "item_weight" -> new ItemWeightSettingsScreen(parent);
+            case "server_tweaks" -> new ServerTweaksSettingsScreen(parent);
             default -> parent;
         };
     }

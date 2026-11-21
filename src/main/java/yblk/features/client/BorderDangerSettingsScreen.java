@@ -8,6 +8,13 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.DarkButton;
+import yblk.features.client.ui.TextField;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ColorButton;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.border.BorderBarrierVisual;
 import yblk.features.border.BorderEffectOptions;
 import yblk.features.border.BorderHarmMode;
@@ -19,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
 
-public class BorderDangerSettingsScreen extends Screen {
+public class BorderDangerSettingsScreen extends BaseSettingsScreen {
         private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFFE88C40;
     private static final int CHECK = 9;
@@ -29,7 +36,6 @@ public class BorderDangerSettingsScreen extends Screen {
     private static final int PANEL_W = 360;
     private static final int DROP_H = 52;
 
-    private final Screen parent;
     private EditBox dangerBox;
     private EditBox visualBox;
     private EditBox approachBox;
@@ -48,8 +54,7 @@ public class BorderDangerSettingsScreen extends Screen {
     private final List<Hit> hits = new ArrayList<>();
 
     public BorderDangerSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".border_danger"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".border_danger"), parent);
     }
 
     @Override
@@ -97,20 +102,26 @@ public class BorderDangerSettingsScreen extends Screen {
             int gap = 4;
             int rowW = btnW * 3 + gap * 2;
             int rowX = width / 2 - rowW / 2;
-            addRenderableWidget(new DarkButton(rowX, btnY, btnW, btnH,
+            DarkButton folder = darkButton(rowX, btnY, btnW, btnH,
                     Component.translatable("screen." + Features.MODID + ".border_danger.barrier.folder"),
-                    CustomBarrierTexture::openStorageFolder));
-            addRenderableWidget(new DarkButton(rowX + btnW + gap, btnY, btnW, btnH,
+                    CustomBarrierTexture::openStorageFolder);
+            folder.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                    Component.translatable("screen." + Features.MODID + ".border_danger.barrier.folder.tip")));
+            addRenderableWidget(folder);
+            DarkButton clear = darkButton(rowX + btnW + gap, btnY, btnW, btnH,
                     Component.translatable("screen." + Features.MODID + ".border_danger.barrier.clear"),
                     () -> {
                         CustomBarrierTexture.clear();
                         rebuildKeepingScroll();
-                    }));
-            addRenderableWidget(new DarkButton(rowX + (btnW + gap) * 2, btnY, btnW, btnH,
+                    });
+            clear.setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                    Component.translatable("screen." + Features.MODID + ".border_danger.barrier.clear.tip")));
+            addRenderableWidget(clear);
+            addRenderableWidget(darkButton(rowX + (btnW + gap) * 2, btnY, btnW, btnH,
                     Component.translatable("gui.done"), this::onClose));
         } else {
             int btnW = 90;
-            addRenderableWidget(new DarkButton(width / 2 - btnW / 2, btnY, btnW, btnH,
+            addRenderableWidget(darkButton(width / 2 - btnW / 2, btnY, btnW, btnH,
                     Component.translatable("gui.done"), this::onClose));
         }
     }
@@ -122,7 +133,7 @@ public class BorderDangerSettingsScreen extends Screen {
     }
 
     private EditBox numberBox(int x, int y, int value, IntConsumer setter) {
-        EditBox box = new EditBox(font, x, y, 44, 14, Component.empty());
+        EditBox box = new TextField(font, x, y, 44, 14, Component.empty());
         box.setValue(Integer.toString(value));
         box.setMaxLength(4);
         box.setFilter(s -> s.isEmpty() || s.chars().allMatch(Character::isDigit));
@@ -264,13 +275,7 @@ public class BorderDangerSettingsScreen extends Screen {
         renderDistanceBoxes(graphics, mouseX, mouseY, partialTick);
         graphics.disableScissor();
 
-        if (maxScroll > 0) {
-            int trackH = panelBottom - panelTop - 8;
-            int thumbH = Math.max(12, trackH * trackH / (trackH + maxScroll));
-            int thumbY = panelTop + 4 + (trackH - thumbH) * scroll / maxScroll;
-            graphics.fill(panelR - 5, panelTop + 4, panelR - 3, panelBottom - 4, 0xFF2A2A32);
-            graphics.fill(panelR - 5, thumbY, panelR - 3, thumbY + thumbH, ACCENT);
-        }
+        ScrollBar.draw(graphics, panelR, panelTop, panelBottom, scroll, maxScroll, ACCENT, v -> scroll = v);
 
         if (FeaturesConfig.borderBarrierVisual == BorderBarrierVisual.CUSTOM) {
             drawDropZone(graphics, mouseX, mouseY);
@@ -333,6 +338,7 @@ public class BorderDangerSettingsScreen extends Screen {
 
     private int drawDistanceRow(GuiGraphics g, int x, int y, String key) {
         g.drawString(font, Component.translatable(key), x, y + 3, 0xC8C8D0, false);
+        tipKey(x, y, panelR - 12 - x, ROW, key);
         return y + ROW;
     }
 
@@ -340,6 +346,7 @@ public class BorderDangerSettingsScreen extends Screen {
                                  String labelKey, Runnable action) {
         int w = Math.min(200, right - left);
         drawChoice(g, left, y, w, CHOICE_H, Component.translatable(labelKey), false, mx, my);
+        tipKey(left, y, w, CHOICE_H, labelKey);
         addHit(left, y, w, CHOICE_H, mx, my, action);
         return y + CHOICE_H + 4;
     }
@@ -347,6 +354,7 @@ public class BorderDangerSettingsScreen extends Screen {
     private int drawToggleRow(GuiGraphics g, int x, int y, int mx, int my, boolean on, Runnable toggle, String labelKey) {
         drawCheck(g, x, y + 3, on);
         g.drawString(font, Component.translatable(labelKey), x + CHECK + 5, y + 3, 0xE0E0E8, false);
+        tipKey(x, y, panelR - 12 - x, ROW, labelKey);
         addHit(x, y, Math.max(40, panelR - 10 - x), ROW - 2, mx, my, toggle);
         return y + ROW;
     }
@@ -354,6 +362,7 @@ public class BorderDangerSettingsScreen extends Screen {
     private int drawColorRow(GuiGraphics g, int x, int y, int mx, int my, String labelKey,
                              int colorA, int colorB, IntConsumer setA, IntConsumer setB) {
         g.drawString(font, Component.translatable(labelKey), x, y + 3, 0xA0A0AA, false);
+        tipKey(x, y, 110, ROW, labelKey);
         int swatchX = Math.min(x + 120, panelR - 70);
         drawSwatch(g, swatchX, y + 1, colorA, mx, my,
                 Component.translatable(labelKey).getString() + " A", setA);
@@ -364,8 +373,7 @@ public class BorderDangerSettingsScreen extends Screen {
 
     private void drawSwatch(GuiGraphics g, int x, int y, int color, int mx, int my,
                             String title, IntConsumer setter) {
-        g.fill(x, y, x + 18, y + 12, 0xFF000000 | color);
-        FeaturesScreen.drawGradientBorder(g, x, y, 18, 12, 0xFFE0E0E0, 0xFF404040);
+        ColorButton.paint(g, x, y, color);
         addHit(x, y, 18, 12, mx, my, () -> {
             if (minecraft != null) {
                 minecraft.setScreen(new ColorPickerScreen(this, Component.literal(title), color, setter));
@@ -385,6 +393,7 @@ public class BorderDangerSettingsScreen extends Screen {
         for (BorderHarmMode mode : BorderHarmMode.values()) {
             boolean active = FeaturesConfig.borderHarmMode == mode;
             drawChoice(g, x, y, w, CHOICE_H, Component.translatable(mode.langKey()), active, mx, my);
+            tipKey(x, y, w, CHOICE_H, mode.langKey());
             int fx = x;
             addHit(fx, y, w, CHOICE_H, mx, my, () -> FeaturesConfig.setBorderHarmMode(mode));
             x += w + gap;
@@ -406,6 +415,7 @@ public class BorderDangerSettingsScreen extends Screen {
             drawCheck(g, x, yy + 3, on);
             g.drawString(font, Component.translatable("screen." + Features.MODID + ".border_danger.effect." + key),
                     x + CHECK + 5, yy + 3, on ? 0xF0F0F0 : 0x9A9AA8, false);
+            tipKey(x, yy, colW - 4, ROW, "screen." + Features.MODID + ".border_danger.effect." + key);
             addHit(x, yy, colW - 4, ROW - 2, mx, my, () -> FeaturesConfig.toggleBorderEffect(key));
             i++;
         }
@@ -426,6 +436,7 @@ public class BorderDangerSettingsScreen extends Screen {
             drawCheck(g, x, yy + 3, on);
             g.drawString(font, Component.translatable(fx.langKey()),
                     x + CHECK + 5, yy + 3, on ? 0xF0F0F0 : 0x9A9AA8, false);
+            tipKey(x, yy, colW - 4, ROW, fx.langKey());
             addHit(x, yy, colW - 4, ROW - 2, mx, my, () -> FeaturesConfig.toggleBorderZoneFx(fx.configKey()));
             i++;
         }
@@ -442,6 +453,7 @@ public class BorderDangerSettingsScreen extends Screen {
         for (T value : values) {
             boolean active = selected == value;
             drawChoice(g, x, y, w, CHOICE_H, Component.translatable(lang.apply(value)), active, mx, my);
+            tipKey(x, y, w, CHOICE_H, lang.apply(value));
             int fx = x;
             addHit(fx, y, w, CHOICE_H, mx, my, () -> setter.accept(value));
             x += w + gap;
@@ -459,13 +471,7 @@ public class BorderDangerSettingsScreen extends Screen {
     }
 
     private static void drawCheck(GuiGraphics g, int x, int y, boolean on) {
-        g.fill(x, y, x + CHECK, y + 1, 0xFFE8E8F0);
-        g.fill(x, y + CHECK - 1, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        g.fill(x, y, x + 1, y + CHECK, 0xFFE8E8F0);
-        g.fill(x + CHECK - 1, y, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        if (on) {
-            g.fill(x + 2, y + 2, x + CHECK - 2, y + CHECK - 2, ACCENT);
-        }
+        Checks.box(g, x, y, CHECK, on, ACCENT);
     }
 
     private boolean insidePanel(double mx, double my) {
@@ -525,52 +531,17 @@ public class BorderDangerSettingsScreen extends Screen {
         }
     }
 
-    @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
-    }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
-        // Skip vanilla gradient / dirt - keep the world sharp with a light dim only.
-        FeatureSettingsBackdrop.render(graphics, width, height);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
     private record Hit(int x, int y, int w, int h, Runnable action) {
     }
 
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
 
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
+    @Override
+    protected int buttonAccent() {
+        return ACCENT;
+    }
 
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A38 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    @Override
+    protected int buttonHover() {
+        return 0xFF2A3A38;
     }
 }

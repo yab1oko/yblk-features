@@ -8,15 +8,17 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.SliderPaint;
+import yblk.features.client.ui.TextField;
 
 import java.util.Locale;
 import java.util.function.IntConsumer;
 
-public class ColorPickerScreen extends Screen {
+public class ColorPickerScreen extends BaseSettingsScreen {
         private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFFE88C40;
 
-    private final Screen parent;
     private final IntConsumer onApply;
     private final int initial;
 
@@ -31,8 +33,7 @@ public class ColorPickerScreen extends Screen {
     private int sliderW;
 
     public ColorPickerScreen(Screen parent, Component title, int rgb, IntConsumer onApply) {
-        super(title);
-        this.parent = parent;
+        super(title, parent);
         this.onApply = onApply;
         this.initial = rgb & 0xFFFFFF;
         this.r = (initial >> 16) & 0xFF;
@@ -49,7 +50,7 @@ public class ColorPickerScreen extends Screen {
         sliderL = panelL + 36;
         sliderW = panelW - 48 - 28;
 
-        hexBox = new EditBox(font, panelL + 12, panelTop + 118, 90, 16, Component.literal("hex"));
+        hexBox = new TextField(font, panelL + 12, panelTop + 118, 90, 16, Component.literal("hex"));
         hexBox.setMaxLength(6);
         hexBox.setFilter(s -> s.chars().allMatch(c -> "0123456789abcdefABCDEF".indexOf(c) >= 0));
         hexBox.setValue(toHex(rgb()));
@@ -58,12 +59,12 @@ public class ColorPickerScreen extends Screen {
 
         int btnY = panelTop + 148;
         int btnW = 80;
-        addRenderableWidget(new DarkButton(width / 2 - btnW - 4, btnY, btnW, 18,
+        addRenderableWidget(darkButton(width / 2 - btnW - 4, btnY, btnW, 18,
                 Component.translatable("gui.done"), () -> {
                     onApply.accept(rgb());
                     onClose();
                 }));
-        addRenderableWidget(new DarkButton(width / 2 + 4, btnY, btnW, 18,
+        addRenderableWidget(darkButton(width / 2 + 4, btnY, btnW, 18,
                 Component.translatable("gui.cancel"), this::onClose));
     }
 
@@ -128,13 +129,7 @@ public class ColorPickerScreen extends Screen {
 
     private void drawSlider(GuiGraphics g, int channel, int y, int value, int tint, int mx, int my) {
         String label = channel == 0 ? "R" : channel == 1 ? "G" : "B";
-        g.drawString(font, label, panelL + 12, y + 1, 0xE0E0E8, false);
-        g.fill(sliderL, y + 4, sliderL + sliderW, y + 8, 0xFF2A2A32);
-        g.fill(sliderL, y + 4, sliderL + Math.round(sliderW * (value / 255f)), y + 8, tint);
-        int knobX = sliderL + Math.round(sliderW * (value / 255f)) - 3;
-        g.fill(knobX, y + 1, knobX + 6, y + 11, 0xFFF0F0F0);
-        FeaturesScreen.drawGradientBorder(g, knobX, y + 1, 6, 10, ACCENT, 0xFF303038);
-        g.drawString(font, Integer.toString(value), sliderL + sliderW + 6, y + 1, 0xC8C8D0, false);
+        SliderPaint.channel(g, font, panelL + 12, sliderL, sliderW, y, label, value, tint, ACCENT);
     }
 
     private void setChannel(int channel, int value) {
@@ -171,6 +166,7 @@ public class ColorPickerScreen extends Screen {
             int hit = hitSlider(mouseX, mouseY);
             if (hit >= 0) {
                 dragging = hit;
+                setDragging(true);
                 applySliderDrag(mouseX, hit);
                 return true;
             }
@@ -195,49 +191,14 @@ public class ColorPickerScreen extends Screen {
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
+
     @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
+    protected int buttonAccent() {
+        return ACCENT;
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics) {
-        // Skip vanilla gradient / dirt - keep the world sharp with a light dim only.
-        FeatureSettingsBackdrop.render(graphics, width, height);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
-
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A38 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    protected int buttonHover() {
+        return 0xFF2A3A38;
     }
 }

@@ -301,6 +301,10 @@ public final class FeaturesConfig {
             .comment("Maximum fog bank intensity (0..1).")
             .defineInRange("trueNight.fogMax", 0.95, 0.0, 1.0);
 
+    private static final ForgeConfigSpec.BooleanValue TRUE_NIGHT_ADMIN_LOCK = BUILDER
+            .comment("If true, only operators (permission level 2+) can change True Night.")
+            .define("trueNight.adminLocked", false);
+
     private static final ForgeConfigSpec.BooleanValue LOCAL_CHAT = BUILDER
             .comment("Local chat: default messages only reach nearby players; prefix ! for global. Ops only.")
             .define("features.localChat", false);
@@ -370,8 +374,203 @@ public final class FeaturesConfig {
             .define("features.itemRemover", false);
 
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> BANNED_ITEMS = BUILDER
-            .comment("Item IDs banned when item remover is enabled.")
-            .defineListAllowEmpty(List.of("itemRemover", "bannedItems"), ArrayList::new, FeaturesConfig::validateItemId);
+            .comment("Item IDs banned when item remover is enabled. A plain id removes the item from inventories, recipes, and loot. Suffix # with i, r, l turns those off: minecraft:tnt#i is inventory only.")
+            .defineListAllowEmpty(List.of("itemRemover", "bannedItems"), ArrayList::new, FeaturesConfig::validateBannedEntry);
+
+    private static final ForgeConfigSpec.BooleanValue COMMAND_BLOCKER = BUILDER
+            .comment("Hide and deny listed commands by permission role.")
+            .define("features.commandBlocker", false);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> COMMAND_RULES = BUILDER
+            .comment("Blocked commands. Prefix roles with p, m, o and a colon: p:gamemode blocks players, pm:give * blocks players and moderators. A bare pattern defaults to players. * matches one token; a token ending in * is a prefix.")
+            .defineListAllowEmpty(List.of("commandBlocker", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<String> COMMAND_DENY = BUILDER
+            .comment("Custom deny message. Empty uses the translation. {command} is replaced with what was typed.")
+            .define("commandBlocker.message", "");
+
+    private static final ForgeConfigSpec.BooleanValue INTERACTION_BLOCKER = BUILDER
+            .comment("Block opening, using, right-clicking, or breaking listed blocks and entities.")
+            .define("features.interactionBlocker", false);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> INTERACTION_RULES = BUILDER
+            .comment("b:id, e:id, bt:tag, or et:tag. Optional |open,use,right,break. All four flags when the suffix is omitted.")
+            .defineListAllowEmpty(List.of("interactionBlocker", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<String> INTERACTION_MESSAGE = BUILDER
+            .comment("Custom deny message. Empty uses the translation.")
+            .define("interactionBlocker.message", "");
+
+    private static final ForgeConfigSpec.BooleanValue INTERACTION_OP_BYPASS = BUILDER
+            .comment("Operators (permission level 2+) ignore the interaction blocker.")
+            .define("interactionBlocker.opBypass", true);
+
+    private static final ForgeConfigSpec.BooleanValue TOOL_RESTRICTIONS = BUILDER
+            .comment("Blocks in mineable/* break only with the matching tool.")
+            .define("features.toolRestrictions", false);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TOOL_EXCEPTIONS = BUILDER
+            .comment("Block ids or #tags that ignore the tool rule.")
+            .defineListAllowEmpty(List.of("toolRestrictions", "exceptions"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TOOL_HAND = BUILDER
+            .comment("Block ids or #tags an empty hand may break.")
+            .defineListAllowEmpty(List.of("toolRestrictions", "hand"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<String> TOOL_MESSAGE = BUILDER
+            .comment("Custom deny message. Empty uses the translation. {block} is replaced with the block name.")
+            .define("toolRestrictions.message", "");
+
+    private static final ForgeConfigSpec.BooleanValue TOOL_SOUND = BUILDER
+            .comment("Play a soft deny sound when the tool rule rejects a break.")
+            .define("toolRestrictions.sound", true);
+
+    private static final ForgeConfigSpec.BooleanValue PORTAL_LOCK = BUILDER
+            .comment("Lock travel into listed dimensions. Empty list allows every portal.")
+            .define("features.portalLock", false);
+
+    private static final ForgeConfigSpec.BooleanValue PORTAL_BLOCK_CREATION = BUILDER
+            .comment("Also stop nether portals from lighting and eyes of ender from completing the end portal.")
+            .define("portalLock.blockCreation", false);
+
+    private static final ForgeConfigSpec.BooleanValue PORTAL_OP_BYPASS = BUILDER
+            .comment("Operators (permission level 2+) ignore portal lock.")
+            .define("portalLock.opBypass", true);
+
+    private static final ForgeConfigSpec.ConfigValue<String> PORTAL_MESSAGE = BUILDER
+            .comment("Custom deny message. Empty uses the translation. {dimension} is replaced.")
+            .define("portalLock.message", "");
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> PORTAL_RULES = BUILDER
+            .comment("dimension allow|block|day <n>|date <YYYY-MM-DD>. Shorthand: nether, end, overworld.")
+            .defineListAllowEmpty(List.of("portalLock", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.BooleanValue ELYTRA_RULES = BUILDER
+            .comment("Per-dimension elytra, firework boost, glide limit, and creative-style flight.")
+            .define("features.elytraRules", false);
+
+    private static final ForgeConfigSpec.BooleanValue ELYTRA_OP_BYPASS = BUILDER
+            .comment("Operators (permission level 2+) ignore elytra and flight rules.")
+            .define("elytraRules.opBypass", true);
+
+    private static final ForgeConfigSpec.ConfigValue<String> ELYTRA_MESSAGE = BUILDER
+            .comment("Custom deny message. Empty uses the translation. {dimension} and {seconds} are replaced.")
+            .define("elytraRules.message", "");
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ELYTRA_RULE_LINES = BUILDER
+            .comment("dimension elytra firework seconds flight. elytra, firework, and flight are allow or deny. 0 seconds means no glide limit.")
+            .defineListAllowEmpty(List.of("elytraRules", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.BooleanValue MOB_DROPS = BUILDER
+            .comment("Add, remove, or replace mob drops, and scale experience.")
+            .define("features.mobDrops", false);
+
+    private static final ForgeConfigSpec.BooleanValue MOB_DROPS_CLEAR = BUILDER
+            .comment("Clear the vanilla drop table before the extra rules run.")
+            .define("mobDrops.clearVanilla", false);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> MOB_DROP_RULES = BUILDER
+            .comment("add|remove|replace|xp <entity|#tag|@mod> ... Optional trailing player limits the rule to player kills.")
+            .defineListAllowEmpty(List.of("mobDrops", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.BooleanValue VILLAGER_TRADES = BUILDER
+            .comment("Block villager and wandering-trader trades, or strip specific results.")
+            .define("features.villagerTrades", false);
+
+    private static final ForgeConfigSpec.BooleanValue VILLAGER_BLOCK_ALL = BUILDER
+            .define("villagerTrades.blockAll", false);
+
+    private static final ForgeConfigSpec.BooleanValue VILLAGER_BLOCK_WANDERING = BUILDER
+            .define("villagerTrades.blockWandering", false);
+
+    private static final ForgeConfigSpec.BooleanValue VILLAGER_FREEZE_PRICES = BUILDER
+            .comment("Ignore hero-of-the-village and curing discounts.")
+            .define("villagerTrades.freezePrices", false);
+
+    private static final ForgeConfigSpec.ConfigValue<String> VILLAGER_MESSAGE = BUILDER
+            .define("villagerTrades.message", "");
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> VILLAGER_PROFESSIONS = BUILDER
+            .comment("Profession ids or @mod. Those villagers cannot trade.")
+            .defineListAllowEmpty(List.of("villagerTrades", "professions"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> VILLAGER_RESULTS = BUILDER
+            .comment("Result item ids, #tags, or @mod removed from every trade.")
+            .defineListAllowEmpty(List.of("villagerTrades", "results"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> VILLAGER_CUSTOMS = BUILDER
+            .comment("Extra offers: profession costA count costB count result count. costB may be - 0. wandering for the trader.")
+            .defineListAllowEmpty(List.of("villagerTrades", "custom"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.BooleanValue ITEM_WEIGHT = BUILDER
+            .comment("Carried items have weight. Too much slows the player, stops sprinting, and raises hunger.")
+            .define("features.itemWeight", false);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_CAPACITY = BUILDER
+            .defineInRange("itemWeight.capacity", 60.0, 1.0, 10000.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_SLOW = BUILDER
+            .defineInRange("itemWeight.slowAt", 0.45, 0.0, 1.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_SPRINT = BUILDER
+            .defineInRange("itemWeight.sprintAt", 0.70, 0.0, 1.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_HUNGER = BUILDER
+            .defineInRange("itemWeight.hungerAt", 0.85, 0.0, 1.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_WET = BUILDER
+            .comment("Armor weight multiplier at full Wetness, if that module is on.")
+            .defineInRange("itemWeight.wetMultiplier", 1.75, 1.0, 5.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_SLOT = BUILDER
+            .comment("Extra carry capacity for each Inventory Revamp slot past the vanilla inventory.")
+            .defineInRange("itemWeight.slotBonus", 4.0, 0.0, 100.0);
+
+    private static final ForgeConfigSpec.DoubleValue ITEM_WEIGHT_STRENGTH = BUILDER
+            .comment("Extra capacity per Strength level. 0.5 means Strength I carries 50% more.")
+            .defineInRange("itemWeight.strength", 0.5, 0.0, 3.0);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_WEIGHT_OVERRIDES = BUILDER
+            .comment("id or #tag, then weight per item. Example: minecraft:anvil 12")
+            .defineListAllowEmpty(List.of("itemWeight", "overrides"), ArrayList::new, FeaturesConfig::validateShortText);
+
+    private static final ForgeConfigSpec.BooleanValue SERVER_TWEAKS = BUILDER
+            .comment("MOTD, tab list, kits, roles, moderation, and basic checks.")
+            .define("features.serverTweaks", false);
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_MOTD = BUILDER.define("serverTweaks.motd", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_JOIN = BUILDER.define("serverTweaks.join", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_LEAVE = BUILDER.define("serverTweaks.leave", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_WELCOME = BUILDER.define("serverTweaks.welcome", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_WELCOME_SUB = BUILDER.define("serverTweaks.welcomeSub", "");
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_RULES = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "rules"), ArrayList::new, FeaturesConfig::validateShortText);
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_TAB_HEADER = BUILDER.define("serverTweaks.tabHeader", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_TAB_FOOTER = BUILDER.define("serverTweaks.tabFooter", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_STARTER_KIT = BUILDER.define("serverTweaks.starterKit", "");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_CHECK_ACTION = BUILDER.define("serverTweaks.checkAction", "log");
+    private static final ForgeConfigSpec.ConfigValue<String> SERVER_CHECK_ACTIONS = BUILDER
+            .comment("Per check: log, notify, or kick. Seven words: fly speed reach fall break xray dupe. Empty uses checkAction.")
+            .define("serverTweaks.checkActions", "");
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_FLY = BUILDER.define("serverTweaks.checkFly", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_SPEED = BUILDER.define("serverTweaks.checkSpeed", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_REACH = BUILDER.define("serverTweaks.checkReach", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_FALL = BUILDER.define("serverTweaks.checkFall", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_BREAK = BUILDER.define("serverTweaks.checkBreak", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_XRAY = BUILDER.define("serverTweaks.checkXray", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_CHECK_DUPE = BUILDER.define("serverTweaks.checkDupe", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_HIDE_PING = BUILDER.define("serverTweaks.hidePing", false);
+    private static final ForgeConfigSpec.BooleanValue SERVER_SORT_TAB = BUILDER.define("serverTweaks.sortTab", true);
+    private static final ForgeConfigSpec.BooleanValue SERVER_ROLE_PREFIX = BUILDER.define("serverTweaks.rolePrefix", true);
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_KITS = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "kits"), ArrayList::new, FeaturesConfig::validateShortText);
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_ROLES = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "roles"), ArrayList::new, FeaturesConfig::validateShortText);
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_MUTES = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "mutes"), ArrayList::new, FeaturesConfig::validateShortText);
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_SEEN = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "seen"), ArrayList::new, FeaturesConfig::validateShortText);
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> SERVER_LOG = BUILDER
+            .defineListAllowEmpty(List.of("serverTweaks", "log"), ArrayList::new, FeaturesConfig::validateShortText);
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
@@ -451,6 +650,7 @@ public final class FeaturesConfig {
     public static float trueNightFogChance = 0.22f;
     public static float trueNightFogMin = 0.35f;
     public static float trueNightFogMax = 0.95f;
+    public static boolean trueNightAdminLocked;
 
     public static boolean localChatEnabled;
     public static int localChatRange = 100;
@@ -472,6 +672,104 @@ public final class FeaturesConfig {
 
     public static boolean itemRemoverEnabled;
     public static Set<String> bannedItemIds = new HashSet<>();
+    public static Map<String, ItemBan> itemBans = new HashMap<>();
+
+    public static boolean commandBlockerEnabled;
+    public static List<String> commandRules = new ArrayList<>();
+    public static String commandDenyMessage = "";
+
+    public static boolean interactionBlockerEnabled;
+    public static List<String> interactionRules = new ArrayList<>();
+    public static String interactionMessage = "";
+    public static boolean interactionOpBypass = true;
+
+    public static boolean toolRestrictionsEnabled;
+    public static List<String> toolExceptions = new ArrayList<>();
+    public static List<String> toolHand = new ArrayList<>();
+    public static String toolMessage = "";
+    public static boolean toolSound = true;
+
+    public static boolean portalLockEnabled;
+    public static boolean portalBlockCreation;
+    public static boolean portalOpBypass = true;
+    public static String portalMessage = "";
+    public static List<String> portalRules = new ArrayList<>();
+
+    public static boolean elytraRulesEnabled;
+    public static boolean elytraOpBypass = true;
+    public static String elytraMessage = "";
+    public static List<String> elytraRules = new ArrayList<>();
+    public static boolean mobDropsEnabled;
+    public static boolean mobDropsClearVanilla;
+    public static List<String> mobDropRules = new ArrayList<>();
+    public static boolean villagerTradesEnabled;
+    public static boolean villagerBlockAll;
+    public static boolean villagerBlockWandering;
+    public static boolean villagerFreezePrices;
+    public static String villagerMessage = "";
+    public static List<String> villagerProfessions = new ArrayList<>();
+    public static List<String> villagerResults = new ArrayList<>();
+    public static List<String> villagerCustoms = new ArrayList<>();
+    public static boolean itemWeightEnabled;
+    public static float itemWeightCapacity = 60f;
+    public static float itemWeightSlow = 0.45f;
+    public static float itemWeightSprint = 0.7f;
+    public static float itemWeightHunger = 0.85f;
+    public static float itemWeightWet = 1.75f;
+    public static float itemWeightSlotBonus = 4f;
+    public static float itemWeightStrength = 0.5f;
+    public static boolean serverTweaksEnabled;
+    public static String serverMotd = "";
+    public static String serverJoin = "";
+    public static String serverLeave = "";
+    public static String serverWelcome = "";
+    public static String serverWelcomeSub = "";
+    public static List<String> serverRules = new ArrayList<>();
+    public static String serverTabHeader = "";
+    public static String serverTabFooter = "";
+    public static String serverStarterKit = "";
+    public static String serverCheckAction = "log";
+    public static String serverCheckFlyAction = "log";
+    public static String serverCheckSpeedAction = "log";
+    public static String serverCheckReachAction = "log";
+    public static String serverCheckFallAction = "log";
+    public static String serverCheckBreakAction = "log";
+    public static String serverCheckXrayAction = "log";
+    public static String serverCheckDupeAction = "log";
+    public static boolean serverCheckFly;
+    public static boolean serverCheckSpeed;
+    public static boolean serverCheckReach;
+    public static boolean serverCheckFall;
+    public static boolean serverCheckBreak;
+    public static boolean serverCheckXray;
+    public static boolean serverCheckDupe;
+    public static boolean serverHidePing;
+    public static boolean serverSortTab = true;
+    public static boolean serverRolePrefix = true;
+    public static List<String> serverKits = new ArrayList<>();
+    public static List<String> serverRoles = new ArrayList<>();
+    public static List<String> serverMutes = new ArrayList<>();
+    public static List<String> serverSeen = new ArrayList<>();
+    public static List<String> serverLog = new ArrayList<>();
+    public static List<String> serverInvView = new ArrayList<>();
+    /** Client-only prompt set by the login packet. Never read on the server path. */
+    public static boolean serverTweaksPromptRules;
+    public static List<String> itemWeightOverrides = new ArrayList<>();
+
+    /** Per banned item. All three are on when the id is stored without a #suffix. */
+    public static final class ItemBan {
+        public boolean inventory = true;
+        public boolean recipes = true;
+        public boolean loot = true;
+
+        public ItemBan copy() {
+            ItemBan next = new ItemBan();
+            next.inventory = inventory;
+            next.recipes = recipes;
+            next.loot = loot;
+            return next;
+        }
+    }
 
     private FeaturesConfig() {
     }
@@ -494,6 +792,25 @@ public final class FeaturesConfig {
             return false;
         }
         String id = s.contains(":") ? s : "minecraft:" + s;
+        return ResourceLocation.tryParse(id) != null;
+    }
+
+    private static boolean validateShortText(Object raw) {
+        return raw instanceof String s && !s.isBlank() && s.length() <= 256;
+    }
+
+    private static boolean validateBannedEntry(Object raw) {
+        if (!(raw instanceof String s) || s.isBlank()) {
+            return false;
+        }
+        String id = s;
+        int hash = id.indexOf('#');
+        if (hash >= 0) {
+            id = id.substring(0, hash);
+        }
+        if (!id.contains(":")) {
+            id = "minecraft:" + id;
+        }
         return ResourceLocation.tryParse(id) != null;
     }
 
@@ -689,6 +1006,11 @@ public final class FeaturesConfig {
         trueNightFogMax = v;
     }
 
+    public static void setTrueNightAdminLocked(boolean locked) {
+        TRUE_NIGHT_ADMIN_LOCK.set(locked);
+        trueNightAdminLocked = locked;
+    }
+
     public static void setLocalChatEnabled(boolean enabled) {
         LOCAL_CHAT.set(enabled);
         localChatEnabled = enabled;
@@ -787,34 +1109,547 @@ public final class FeaturesConfig {
         itemRemoverEnabled = enabled;
     }
 
+    public static void setCommandBlockerEnabled(boolean enabled) {
+        applyCommandBlocker(enabled, commandRules, commandDenyMessage, true);
+    }
+
+    public static void setCommandRules(List<String> rules) {
+        applyCommandBlocker(commandBlockerEnabled, rules, commandDenyMessage, true);
+    }
+
+    public static void setCommandDenyMessage(String message) {
+        applyCommandBlocker(commandBlockerEnabled, commandRules, message, true);
+    }
+
+    public static void applyCommandBlocker(boolean enabled, List<String> rules, String message, boolean writeSpec) {
+        commandBlockerEnabled = enabled;
+        commandRules = cleanText(rules);
+        commandDenyMessage = clipText(message);
+        if (writeSpec) {
+            COMMAND_BLOCKER.set(enabled);
+            COMMAND_RULES.set(new ArrayList<>(commandRules));
+            COMMAND_DENY.set(commandDenyMessage);
+        }
+    }
+
+    public static void setInteractionBlockerEnabled(boolean enabled) {
+        applyInteractionBlocker(enabled, interactionRules, interactionMessage, interactionOpBypass, true);
+    }
+
+    public static void setInteractionRules(List<String> rules) {
+        applyInteractionBlocker(interactionBlockerEnabled, rules, interactionMessage, interactionOpBypass, true);
+    }
+
+    public static void setInteractionMessage(String message) {
+        applyInteractionBlocker(interactionBlockerEnabled, interactionRules, message, interactionOpBypass, true);
+    }
+
+    public static void setInteractionOpBypass(boolean bypass) {
+        applyInteractionBlocker(interactionBlockerEnabled, interactionRules, interactionMessage, bypass, true);
+    }
+
+    public static void applyInteractionBlocker(boolean enabled, List<String> rules, String message,
+                                               boolean opBypass, boolean writeSpec) {
+        interactionBlockerEnabled = enabled;
+        interactionRules = cleanText(rules);
+        interactionMessage = clipText(message);
+        interactionOpBypass = opBypass;
+        if (writeSpec) {
+            INTERACTION_BLOCKER.set(enabled);
+            INTERACTION_RULES.set(new ArrayList<>(interactionRules));
+            INTERACTION_MESSAGE.set(interactionMessage);
+            INTERACTION_OP_BYPASS.set(opBypass);
+        }
+    }
+
+    public static void setToolRestrictionsEnabled(boolean enabled) {
+        applyToolRestrictions(enabled, toolExceptions, toolHand, toolMessage, toolSound, true);
+    }
+
+    public static void setToolExceptions(List<String> exceptions) {
+        applyToolRestrictions(toolRestrictionsEnabled, exceptions, toolHand, toolMessage, toolSound, true);
+    }
+
+    public static void setToolHand(List<String> hand) {
+        applyToolRestrictions(toolRestrictionsEnabled, toolExceptions, hand, toolMessage, toolSound, true);
+    }
+
+    public static void setToolMessage(String message) {
+        applyToolRestrictions(toolRestrictionsEnabled, toolExceptions, toolHand, message, toolSound, true);
+    }
+
+    public static void setToolSound(boolean sound) {
+        applyToolRestrictions(toolRestrictionsEnabled, toolExceptions, toolHand, toolMessage, sound, true);
+    }
+
+    public static void applyToolRestrictions(boolean enabled, List<String> exceptions, List<String> hand,
+                                             String message, boolean sound, boolean writeSpec) {
+        toolRestrictionsEnabled = enabled;
+        toolExceptions = cleanText(exceptions);
+        toolHand = cleanText(hand);
+        toolMessage = clipText(message);
+        toolSound = sound;
+        if (writeSpec) {
+            TOOL_RESTRICTIONS.set(enabled);
+            TOOL_EXCEPTIONS.set(new ArrayList<>(toolExceptions));
+            TOOL_HAND.set(new ArrayList<>(toolHand));
+            TOOL_MESSAGE.set(toolMessage);
+            TOOL_SOUND.set(sound);
+        }
+    }
+
+    public static void setPortalLockEnabled(boolean enabled) {
+        applyPortalLock(enabled, portalBlockCreation, portalOpBypass, portalMessage, portalRules, true);
+    }
+
+    public static void setPortalBlockCreation(boolean blockCreation) {
+        applyPortalLock(portalLockEnabled, blockCreation, portalOpBypass, portalMessage, portalRules, true);
+    }
+
+    public static void setPortalOpBypass(boolean opBypass) {
+        applyPortalLock(portalLockEnabled, portalBlockCreation, opBypass, portalMessage, portalRules, true);
+    }
+
+    public static void setPortalMessage(String message) {
+        applyPortalLock(portalLockEnabled, portalBlockCreation, portalOpBypass, message, portalRules, true);
+    }
+
+    public static void setPortalRules(List<String> rules) {
+        applyPortalLock(portalLockEnabled, portalBlockCreation, portalOpBypass, portalMessage, rules, true);
+    }
+
+    public static void applyPortalLock(boolean enabled, boolean blockCreation, boolean opBypass, String message,
+                                       List<String> rules, boolean writeSpec) {
+        portalLockEnabled = enabled;
+        portalBlockCreation = blockCreation;
+        portalOpBypass = opBypass;
+        portalMessage = clipText(message);
+        portalRules = cleanText(rules);
+        if (writeSpec) {
+            PORTAL_LOCK.set(enabled);
+            PORTAL_BLOCK_CREATION.set(blockCreation);
+            PORTAL_OP_BYPASS.set(opBypass);
+            PORTAL_MESSAGE.set(portalMessage);
+            PORTAL_RULES.set(new ArrayList<>(portalRules));
+        }
+    }
+
+    public static void setElytraRulesEnabled(boolean enabled) {
+        applyElytraRules(enabled, elytraOpBypass, elytraMessage, elytraRules, true);
+    }
+
+    public static void setElytraOpBypass(boolean opBypass) {
+        applyElytraRules(elytraRulesEnabled, opBypass, elytraMessage, elytraRules, true);
+    }
+
+    public static void setElytraMessage(String message) {
+        applyElytraRules(elytraRulesEnabled, elytraOpBypass, message, elytraRules, true);
+    }
+
+    public static void setElytraRules(List<String> rules) {
+        applyElytraRules(elytraRulesEnabled, elytraOpBypass, elytraMessage, rules, true);
+    }
+
+    public static void applyElytraRules(boolean enabled, boolean opBypass, String message, List<String> rules,
+                                        boolean writeSpec) {
+        elytraRulesEnabled = enabled;
+        elytraOpBypass = opBypass;
+        elytraMessage = clipText(message);
+        elytraRules = cleanText(rules);
+        if (writeSpec) {
+            ELYTRA_RULES.set(enabled);
+            ELYTRA_OP_BYPASS.set(opBypass);
+            ELYTRA_MESSAGE.set(elytraMessage);
+            ELYTRA_RULE_LINES.set(new ArrayList<>(elytraRules));
+        }
+    }
+
+    public static void setMobDropsEnabled(boolean enabled) {
+        applyMobDrops(enabled, mobDropsClearVanilla, mobDropRules, true);
+    }
+
+    public static void setMobDropsClearVanilla(boolean clear) {
+        applyMobDrops(mobDropsEnabled, clear, mobDropRules, true);
+    }
+
+    public static void setMobDropRules(List<String> rules) {
+        applyMobDrops(mobDropsEnabled, mobDropsClearVanilla, rules, true);
+    }
+
+    public static void applyMobDrops(boolean enabled, boolean clearVanilla, List<String> rules, boolean writeSpec) {
+        mobDropsEnabled = enabled;
+        mobDropsClearVanilla = clearVanilla;
+        mobDropRules = cleanText(rules);
+        if (writeSpec) {
+            MOB_DROPS.set(enabled);
+            MOB_DROPS_CLEAR.set(clearVanilla);
+            MOB_DROP_RULES.set(new ArrayList<>(mobDropRules));
+        }
+    }
+
+    public static void setVillagerTradesEnabled(boolean enabled) {
+        applyVillagerTrades(enabled, villagerBlockAll, villagerBlockWandering, villagerFreezePrices,
+                villagerMessage, villagerProfessions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerBlockAll(boolean blockAll) {
+        applyVillagerTrades(villagerTradesEnabled, blockAll, villagerBlockWandering, villagerFreezePrices,
+                villagerMessage, villagerProfessions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerBlockWandering(boolean blockWandering) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, blockWandering, villagerFreezePrices,
+                villagerMessage, villagerProfessions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerFreezePrices(boolean freezePrices) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, villagerBlockWandering, freezePrices,
+                villagerMessage, villagerProfessions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerMessage(String message) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, villagerBlockWandering, villagerFreezePrices,
+                message, villagerProfessions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerProfessions(List<String> professions) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, villagerBlockWandering, villagerFreezePrices,
+                villagerMessage, professions, villagerResults, villagerCustoms, true);
+    }
+
+    public static void setVillagerResults(List<String> results) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, villagerBlockWandering, villagerFreezePrices,
+                villagerMessage, villagerProfessions, results, villagerCustoms, true);
+    }
+
+    public static void setVillagerCustoms(List<String> customs) {
+        applyVillagerTrades(villagerTradesEnabled, villagerBlockAll, villagerBlockWandering, villagerFreezePrices,
+                villagerMessage, villagerProfessions, villagerResults, customs, true);
+    }
+
+    public static void applyVillagerTrades(boolean enabled, boolean blockAll, boolean blockWandering, boolean freezePrices,
+                                           String message, List<String> professions, List<String> results,
+                                           List<String> customs, boolean writeSpec) {
+        villagerTradesEnabled = enabled;
+        villagerBlockAll = blockAll;
+        villagerBlockWandering = blockWandering;
+        villagerFreezePrices = freezePrices;
+        villagerMessage = clipText(message);
+        villagerProfessions = cleanText(professions);
+        villagerResults = cleanText(results);
+        villagerCustoms = cleanText(customs);
+        if (writeSpec) {
+            VILLAGER_TRADES.set(enabled);
+            VILLAGER_BLOCK_ALL.set(blockAll);
+            VILLAGER_BLOCK_WANDERING.set(blockWandering);
+            VILLAGER_FREEZE_PRICES.set(freezePrices);
+            VILLAGER_MESSAGE.set(villagerMessage);
+            VILLAGER_PROFESSIONS.set(new ArrayList<>(villagerProfessions));
+            VILLAGER_RESULTS.set(new ArrayList<>(villagerResults));
+            VILLAGER_CUSTOMS.set(new ArrayList<>(villagerCustoms));
+        }
+    }
+
+    public static void setItemWeightEnabled(boolean enabled) {
+        applyItemWeight(enabled, itemWeightCapacity, itemWeightSlow, itemWeightSprint, itemWeightHunger,
+                itemWeightWet, itemWeightSlotBonus, itemWeightStrength, itemWeightOverrides, true);
+    }
+
+    public static void setItemWeightOverrides(List<String> overrides) {
+        applyItemWeight(itemWeightEnabled, itemWeightCapacity, itemWeightSlow, itemWeightSprint, itemWeightHunger,
+                itemWeightWet, itemWeightSlotBonus, itemWeightStrength, overrides, true);
+    }
+
+    public static void applyItemWeight(boolean enabled, float capacity, float slowAt, float sprintAt, float hungerAt,
+                                       float wet, float slotBonus, float strength, List<String> overrides, boolean writeSpec) {
+        itemWeightEnabled = enabled;
+        itemWeightCapacity = Math.max(1f, capacity);
+        itemWeightSlow = clamp01(slowAt);
+        itemWeightSprint = clamp01(sprintAt);
+        itemWeightHunger = clamp01(hungerAt);
+        itemWeightWet = Math.max(1f, wet);
+        itemWeightSlotBonus = Math.max(0f, slotBonus);
+        itemWeightStrength = Math.max(0f, strength);
+        itemWeightOverrides = cleanText(overrides);
+        if (writeSpec) {
+            ITEM_WEIGHT.set(enabled);
+            ITEM_WEIGHT_CAPACITY.set((double) itemWeightCapacity);
+            ITEM_WEIGHT_SLOW.set((double) itemWeightSlow);
+            ITEM_WEIGHT_SPRINT.set((double) itemWeightSprint);
+            ITEM_WEIGHT_HUNGER.set((double) itemWeightHunger);
+            ITEM_WEIGHT_WET.set((double) itemWeightWet);
+            ITEM_WEIGHT_SLOT.set((double) itemWeightSlotBonus);
+            ITEM_WEIGHT_STRENGTH.set((double) itemWeightStrength);
+            ITEM_WEIGHT_OVERRIDES.set(new ArrayList<>(itemWeightOverrides));
+        }
+    }
+
+    public static void applyServerTweaks(boolean enabled, String motd, String join, String leave, String welcome,
+                                         String welcomeSub, List<String> rules, String header, String footer,
+                                         String starter, String checkAction, boolean fly, boolean speed, boolean reach,
+                                         boolean fall, boolean fastBreak, boolean xray, boolean dupe, List<String> kits, List<String> roles,
+                                         List<String> mutes, List<String> seen, List<String> log, boolean hidePing, boolean sortTab,
+                                         boolean rolePrefix, String checkActions, boolean writeSpec) {
+        serverTweaksEnabled = enabled;
+        serverMotd = clipText(motd);
+        serverJoin = clipText(join);
+        serverLeave = clipText(leave);
+        serverWelcome = clipText(welcome);
+        serverWelcomeSub = clipText(welcomeSub);
+        serverRules = cleanText(rules);
+        serverTabHeader = clipText(header);
+        serverTabFooter = clipText(footer);
+        serverStarterKit = clipText(starter);
+        serverCheckAction = normalizeCheckAction(checkAction);
+        loadCheckActions(checkActions);
+        serverCheckFly = fly;
+        serverCheckSpeed = speed;
+        serverCheckReach = reach;
+        serverCheckFall = fall;
+        serverCheckBreak = fastBreak;
+        serverCheckXray = xray;
+        serverCheckDupe = dupe;
+        serverHidePing = hidePing;
+        serverSortTab = sortTab;
+        serverRolePrefix = rolePrefix;
+        serverKits = cleanText(kits);
+        serverRoles = cleanText(roles);
+        serverMutes = cleanText(mutes);
+        serverSeen = cleanText(seen);
+        serverLog = cleanText(log);
+        if (serverLog.size() > 40) {
+            serverLog = new ArrayList<>(serverLog.subList(serverLog.size() - 40, serverLog.size()));
+        }
+        if (writeSpec) {
+            SERVER_TWEAKS.set(enabled);
+            SERVER_MOTD.set(serverMotd);
+            SERVER_JOIN.set(serverJoin);
+            SERVER_LEAVE.set(serverLeave);
+            SERVER_WELCOME.set(serverWelcome);
+            SERVER_WELCOME_SUB.set(serverWelcomeSub);
+            SERVER_RULES.set(new ArrayList<>(serverRules));
+            SERVER_TAB_HEADER.set(serverTabHeader);
+            SERVER_TAB_FOOTER.set(serverTabFooter);
+            SERVER_STARTER_KIT.set(serverStarterKit);
+            SERVER_CHECK_ACTION.set(serverCheckAction);
+            SERVER_CHECK_ACTIONS.set(joinCheckActions());
+            SERVER_CHECK_FLY.set(fly);
+            SERVER_CHECK_SPEED.set(speed);
+            SERVER_CHECK_REACH.set(reach);
+            SERVER_CHECK_FALL.set(fall);
+            SERVER_CHECK_BREAK.set(fastBreak);
+            SERVER_CHECK_XRAY.set(xray);
+            SERVER_CHECK_DUPE.set(dupe);
+            SERVER_HIDE_PING.set(hidePing);
+            SERVER_SORT_TAB.set(sortTab);
+            SERVER_ROLE_PREFIX.set(rolePrefix);
+            SERVER_KITS.set(new ArrayList<>(serverKits));
+            SERVER_ROLES.set(new ArrayList<>(serverRoles));
+            SERVER_MUTES.set(new ArrayList<>(serverMutes));
+            SERVER_SEEN.set(new ArrayList<>(serverSeen));
+            SERVER_LOG.set(new ArrayList<>(serverLog));
+        }
+    }
+
+    public static String normalizeCheckAction(String raw) {
+        if (raw == null) {
+            return "log";
+        }
+        return switch (raw.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "kick" -> "kick";
+            case "notify", "staff" -> "notify";
+            default -> "log";
+        };
+    }
+
+    public static String checkActionFor(String check) {
+        String raw = switch (check == null ? "" : check) {
+            case "fly" -> serverCheckFlyAction;
+            case "speed" -> serverCheckSpeedAction;
+            case "reach" -> serverCheckReachAction;
+            case "fall", "no-fall" -> serverCheckFallAction;
+            case "break", "fast-break" -> serverCheckBreakAction;
+            case "xray" -> serverCheckXrayAction;
+            case "dupe" -> serverCheckDupeAction;
+            default -> serverCheckAction;
+        };
+        if (raw == null || raw.isBlank()) {
+            raw = serverCheckAction;
+        }
+        return normalizeCheckAction(raw);
+    }
+
+    public static void cycleCheckAction(String check) {
+        String next = switch (checkActionFor(check)) {
+            case "log" -> "notify";
+            case "notify" -> "kick";
+            default -> "log";
+        };
+        switch (check == null ? "" : check) {
+            case "fly" -> serverCheckFlyAction = next;
+            case "speed" -> serverCheckSpeedAction = next;
+            case "reach" -> serverCheckReachAction = next;
+            case "fall", "no-fall" -> serverCheckFallAction = next;
+            case "break", "fast-break" -> serverCheckBreakAction = next;
+            case "xray" -> serverCheckXrayAction = next;
+            case "dupe" -> serverCheckDupeAction = next;
+            default -> {
+            }
+        }
+    }
+
+    public static String joinCheckActions() {
+        return checkActionFor("fly") + " " + checkActionFor("speed") + " " + checkActionFor("reach") + " "
+                + checkActionFor("fall") + " " + checkActionFor("break") + " " + checkActionFor("xray") + " "
+                + checkActionFor("dupe");
+    }
+
+    private static void loadCheckActions(String raw) {
+        String[] parts = raw == null || raw.isBlank() ? new String[0] : raw.trim().split("\\s+");
+        serverCheckFlyAction = actionToken(parts, 0);
+        serverCheckSpeedAction = actionToken(parts, 1);
+        serverCheckReachAction = actionToken(parts, 2);
+        serverCheckFallAction = actionToken(parts, 3);
+        serverCheckBreakAction = actionToken(parts, 4);
+        serverCheckXrayAction = actionToken(parts, 5);
+        serverCheckDupeAction = actionToken(parts, 6);
+        serverCheckAction = sharedCheckAction();
+    }
+
+    private static String actionToken(String[] parts, int index) {
+        if (index >= parts.length || parts[index].isBlank()) {
+            return normalizeCheckAction(serverCheckAction);
+        }
+        return normalizeCheckAction(parts[index]);
+    }
+
+    private static String sharedCheckAction() {
+        String first = checkActionFor("fly");
+        if (first.equals(checkActionFor("speed")) && first.equals(checkActionFor("reach"))
+                && first.equals(checkActionFor("fall")) && first.equals(checkActionFor("break"))
+                && first.equals(checkActionFor("xray")) && first.equals(checkActionFor("dupe"))) {
+            return first;
+        }
+        return "log";
+    }
+
+    public static void setServerTweaksEnabled(boolean enabled) {
+        applyServerTweaks(enabled, serverMotd, serverJoin, serverLeave, serverWelcome, serverWelcomeSub, serverRules,
+                serverTabHeader, serverTabFooter, serverStarterKit, serverCheckAction, serverCheckFly, serverCheckSpeed,
+                serverCheckReach, serverCheckFall, serverCheckBreak, serverCheckXray, serverCheckDupe, serverKits, serverRoles,
+                serverMutes, serverSeen, serverLog, serverHidePing, serverSortTab, serverRolePrefix,
+                joinCheckActions(), true);
+    }
+
+    private static float clamp01(float value) {
+        if (value < 0f) {
+            return 0f;
+        }
+        return Math.min(1f, value);
+    }
+
+    private static List<String> cleanText(List<? extends String> values) {
+        List<String> out = new ArrayList<>();
+        if (values == null) {
+            return out;
+        }
+        for (String raw : values) {
+            if (raw == null) {
+                continue;
+            }
+            String s = raw.trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+            if (s.length() > 256) {
+                s = s.substring(0, 256);
+            }
+            out.add(s);
+            if (out.size() >= 512) {
+                break;
+            }
+        }
+        return out;
+    }
+
+    private static String clipText(String message) {
+        if (message == null) {
+            return "";
+        }
+        String s = message;
+        if (s.length() > 256) {
+            s = s.substring(0, 256);
+        }
+        return s;
+    }
+
     public static boolean isItemBanned(ResourceLocation id) {
         return id != null && bannedItemIds.contains(id.toString().toLowerCase());
     }
 
+    public static ItemBan itemBan(ResourceLocation id) {
+        if (id == null) {
+            return null;
+        }
+        return itemBans.get(id.toString().toLowerCase());
+    }
+
     public static List<String> bannedItemIdList() {
-        List<String> list = new ArrayList<>(bannedItemIds);
+        List<String> list = encodeBans(itemBans);
         Collections.sort(list);
         return list;
     }
 
+    /** Keeps flags on ids that stay banned. Newly banned ids start with every flag on. */
     public static void setBannedItemIds(Set<String> ids) {
-        Set<String> set = new HashSet<>();
+        Map<String, ItemBan> next = new HashMap<>();
         for (String entry : ids) {
-            if (entry == null || entry.isBlank()) {
+            String key = normalizeItemId(entry);
+            if (key == null) {
                 continue;
             }
-            String key = entry.trim().toLowerCase();
-            if (!key.contains(":")) {
-                key = "minecraft:" + key;
-            }
-            if (ResourceLocation.tryParse(key) != null) {
-                set.add(key);
+            ItemBan existing = itemBans.get(key);
+            next.put(key, existing == null ? new ItemBan() : existing.copy());
+        }
+        applyBans(next, true);
+    }
+
+    public static void setItemBanned(ResourceLocation id, boolean banned) {
+        String key = id == null ? null : normalizeItemId(id.toString());
+        if (key == null) {
+            return;
+        }
+        Map<String, ItemBan> next = copyBans();
+        if (banned) {
+            next.putIfAbsent(key, new ItemBan());
+        } else {
+            next.remove(key);
+        }
+        applyBans(next, true);
+    }
+
+    public static void setItemFlag(ResourceLocation id, String flag, boolean on) {
+        String key = id == null ? null : normalizeItemId(id.toString());
+        ItemBan ban = key == null ? null : copyBans().get(key);
+        if (ban == null) {
+            return;
+        }
+        switch (flag) {
+            case "inventory" -> ban.inventory = on;
+            case "recipes" -> ban.recipes = on;
+            case "loot" -> ban.loot = on;
+            default -> {
+                return;
             }
         }
-        List<String> list = new ArrayList<>(set);
-        Collections.sort(list);
-        BANNED_ITEMS.set(list);
-        bannedItemIds = set;
+        Map<String, ItemBan> next = copyBans();
+        next.put(key, ban);
+        applyBans(next, true);
+    }
+
+    /** Server writes the spec. Clients only keep the synced map. */
+    public static void replaceBans(Map<String, ItemBan> rules, boolean writeSpec) {
+        applyBans(rules, writeSpec);
     }
 
     private static float clampFloat(float value, float min, float max) {
@@ -822,20 +1657,99 @@ public final class FeaturesConfig {
     }
 
     private static void reloadBannedItems(List<? extends String> values) {
-        Set<String> set = new HashSet<>();
+        Map<String, ItemBan> parsed = new HashMap<>();
         for (String entry : values) {
-            if (entry == null || entry.isBlank()) {
-                continue;
-            }
-            String key = entry.trim().toLowerCase();
-            if (!key.contains(":")) {
-                key = "minecraft:" + key;
-            }
-            if (ResourceLocation.tryParse(key) != null) {
-                set.add(key);
+            ParsedBan parsedBan = parseBan(entry);
+            if (parsedBan != null) {
+                parsed.put(parsedBan.id, parsedBan.ban);
             }
         }
-        bannedItemIds = set;
+        applyBans(parsed, false);
+    }
+
+    private static Map<String, ItemBan> copyBans() {
+        Map<String, ItemBan> next = new HashMap<>();
+        for (Map.Entry<String, ItemBan> entry : itemBans.entrySet()) {
+            next.put(entry.getKey(), entry.getValue().copy());
+        }
+        return next;
+    }
+
+    private static void applyBans(Map<String, ItemBan> rules, boolean writeSpec) {
+        itemBans = rules;
+        bannedItemIds = new HashSet<>(rules.keySet());
+        if (writeSpec) {
+            BANNED_ITEMS.set(encodeBans(rules));
+        }
+    }
+
+    private static List<String> encodeBans(Map<String, ItemBan> rules) {
+        List<String> list = new ArrayList<>();
+        for (Map.Entry<String, ItemBan> entry : rules.entrySet()) {
+            ItemBan ban = entry.getValue();
+            if (ban.inventory && ban.recipes && ban.loot) {
+                list.add(entry.getKey());
+                continue;
+            }
+            StringBuilder flags = new StringBuilder();
+            if (ban.inventory) {
+                flags.append('i');
+            }
+            if (ban.recipes) {
+                flags.append('r');
+            }
+            if (ban.loot) {
+                flags.append('l');
+            }
+            list.add(entry.getKey() + "#" + flags);
+        }
+        Collections.sort(list);
+        return list;
+    }
+
+    private static String normalizeItemId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String key = raw.trim().toLowerCase();
+        int hash = key.indexOf('#');
+        if (hash >= 0) {
+            key = key.substring(0, hash);
+        }
+        if (!key.contains(":")) {
+            key = "minecraft:" + key;
+        }
+        return ResourceLocation.tryParse(key) == null ? null : key;
+    }
+
+    private static ParsedBan parseBan(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String text = raw.trim().toLowerCase();
+        boolean inventory = true;
+        boolean recipes = true;
+        boolean loot = true;
+        int hash = text.indexOf('#');
+        if (hash >= 0) {
+            String flags = text.substring(hash + 1);
+            text = text.substring(0, hash);
+            inventory = flags.indexOf('i') >= 0;
+            recipes = flags.indexOf('r') >= 0;
+            loot = flags.indexOf('l') >= 0;
+        }
+        String id = normalizeItemId(text);
+        if (id == null) {
+            return null;
+        }
+        ItemBan ban = new ItemBan();
+        ban.inventory = inventory;
+        ban.recipes = recipes;
+        ban.loot = loot;
+        return new ParsedBan(id, ban);
+    }
+
+    private record ParsedBan(String id, ItemBan ban) {
     }
 
     public static void setHideNamesMode(HideNamesMode mode) {
@@ -1347,6 +2261,11 @@ public final class FeaturesConfig {
         if (event.getConfig().getSpec() != SPEC) {
             return;
         }
+        reloadFromSpec();
+    }
+
+    /** Copy the live spec into the fields the rest of the mod reads. */
+    public static void reloadFromSpec() {
         inventoryRevampEnabled = INVENTORY_REVAMP.get();
         mobSpawnBlockEnabled = MOB_SPAWN_BLOCK.get();
         mobSpawnBlockAllSources = MOB_SPAWN_BLOCK_ALL.get();
@@ -1432,6 +2351,7 @@ public final class FeaturesConfig {
         trueNightFogChance = TRUE_NIGHT_FOG_CHANCE.get().floatValue();
         trueNightFogMin = TRUE_NIGHT_FOG_MIN.get().floatValue();
         trueNightFogMax = TRUE_NIGHT_FOG_MAX.get().floatValue();
+        trueNightAdminLocked = TRUE_NIGHT_ADMIN_LOCK.get();
         localChatEnabled = LOCAL_CHAT.get();
         localChatRange = LOCAL_CHAT_RANGE.get();
         localChatAdminBypass = LOCAL_CHAT_ADMIN_BYPASS.get();
@@ -1450,6 +2370,84 @@ public final class FeaturesConfig {
         wetnessArmorSlow = WETNESS_ARMOR_SLOW.get().floatValue();
         itemRemoverEnabled = ITEM_REMOVER.get();
         reloadBannedItems(BANNED_ITEMS.get());
+        commandBlockerEnabled = COMMAND_BLOCKER.get();
+        commandRules = cleanText(COMMAND_RULES.get());
+        commandDenyMessage = clipText(COMMAND_DENY.get());
+        interactionBlockerEnabled = INTERACTION_BLOCKER.get();
+        interactionRules = cleanText(INTERACTION_RULES.get());
+        interactionMessage = clipText(INTERACTION_MESSAGE.get());
+        interactionOpBypass = INTERACTION_OP_BYPASS.get();
+        toolRestrictionsEnabled = TOOL_RESTRICTIONS.get();
+        toolExceptions = cleanText(TOOL_EXCEPTIONS.get());
+        toolHand = cleanText(TOOL_HAND.get());
+        toolMessage = clipText(TOOL_MESSAGE.get());
+        toolSound = TOOL_SOUND.get();
+        portalLockEnabled = PORTAL_LOCK.get();
+        portalBlockCreation = PORTAL_BLOCK_CREATION.get();
+        portalOpBypass = PORTAL_OP_BYPASS.get();
+        portalMessage = clipText(PORTAL_MESSAGE.get());
+        portalRules = cleanText(PORTAL_RULES.get());
+        elytraRulesEnabled = ELYTRA_RULES.get();
+        elytraOpBypass = ELYTRA_OP_BYPASS.get();
+        elytraMessage = clipText(ELYTRA_MESSAGE.get());
+        elytraRules = cleanText(ELYTRA_RULE_LINES.get());
+        mobDropsEnabled = MOB_DROPS.get();
+        mobDropsClearVanilla = MOB_DROPS_CLEAR.get();
+        mobDropRules = cleanText(MOB_DROP_RULES.get());
+        villagerTradesEnabled = VILLAGER_TRADES.get();
+        villagerBlockAll = VILLAGER_BLOCK_ALL.get();
+        villagerBlockWandering = VILLAGER_BLOCK_WANDERING.get();
+        villagerFreezePrices = VILLAGER_FREEZE_PRICES.get();
+        villagerMessage = clipText(VILLAGER_MESSAGE.get());
+        villagerProfessions = cleanText(VILLAGER_PROFESSIONS.get());
+        villagerResults = cleanText(VILLAGER_RESULTS.get());
+        villagerCustoms = cleanText(VILLAGER_CUSTOMS.get());
+        itemWeightEnabled = ITEM_WEIGHT.get();
+        itemWeightCapacity = ITEM_WEIGHT_CAPACITY.get().floatValue();
+        itemWeightSlow = ITEM_WEIGHT_SLOW.get().floatValue();
+        itemWeightSprint = ITEM_WEIGHT_SPRINT.get().floatValue();
+        itemWeightHunger = ITEM_WEIGHT_HUNGER.get().floatValue();
+        itemWeightWet = ITEM_WEIGHT_WET.get().floatValue();
+        itemWeightSlotBonus = ITEM_WEIGHT_SLOT.get().floatValue();
+        itemWeightStrength = ITEM_WEIGHT_STRENGTH.get().floatValue();
+        itemWeightOverrides = cleanText(ITEM_WEIGHT_OVERRIDES.get());
+        serverTweaksEnabled = SERVER_TWEAKS.get();
+        serverMotd = clipText(SERVER_MOTD.get());
+        serverJoin = clipText(SERVER_JOIN.get());
+        serverLeave = clipText(SERVER_LEAVE.get());
+        serverWelcome = clipText(SERVER_WELCOME.get());
+        serverWelcomeSub = clipText(SERVER_WELCOME_SUB.get());
+        serverRules = cleanText(SERVER_RULES.get());
+        serverTabHeader = clipText(SERVER_TAB_HEADER.get());
+        serverTabFooter = clipText(SERVER_TAB_FOOTER.get());
+        serverStarterKit = clipText(SERVER_STARTER_KIT.get());
+        serverCheckAction = normalizeCheckAction(SERVER_CHECK_ACTION.get());
+        loadCheckActions(SERVER_CHECK_ACTIONS.get());
+        serverCheckFly = SERVER_CHECK_FLY.get();
+        serverCheckSpeed = SERVER_CHECK_SPEED.get();
+        serverCheckReach = SERVER_CHECK_REACH.get();
+        serverCheckFall = SERVER_CHECK_FALL.get();
+        serverCheckBreak = SERVER_CHECK_BREAK.get();
+        serverCheckXray = SERVER_CHECK_XRAY.get();
+        serverCheckDupe = SERVER_CHECK_DUPE.get();
+        serverHidePing = SERVER_HIDE_PING.get();
+        serverSortTab = SERVER_SORT_TAB.get();
+        serverRolePrefix = SERVER_ROLE_PREFIX.get();
+        serverKits = cleanText(SERVER_KITS.get());
+        serverRoles = cleanText(SERVER_ROLES.get());
+        serverMutes = cleanText(SERVER_MUTES.get());
+        serverSeen = cleanText(SERVER_SEEN.get());
+        serverLog = cleanText(SERVER_LOG.get());
+        yblk.features.restrict.RestrictionsSync.afterConfigReload();
+        yblk.features.world.WorldSync.afterConfigReload();
+        yblk.features.mobs.MobsSync.afterConfigReload();
+        net.minecraft.server.MinecraftServer weightServer = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        if (weightServer != null) {
+            for (net.minecraft.server.level.ServerPlayer weightPlayer : weightServer.getPlayerList().getPlayers()) {
+                yblk.features.network.ModNetwork.sendToPlayer(weightPlayer, yblk.features.network.ItemWeightPacket.current());
+                yblk.features.network.ModNetwork.sendToPlayer(weightPlayer, yblk.features.network.ServerTweaksPacket.current(false));
+            }
+        }
     }
 
     private static void reloadBorderZoneFx(List<? extends String> values) {

@@ -6,6 +6,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.Locale;
 
@@ -35,6 +36,31 @@ public final class CatalogSearch {
         String name = stack.getHoverName().getString().toLowerCase(Locale.ROOT);
         String idStr = id.toString().toLowerCase(Locale.ROOT);
         return name.contains(q) || idStr.contains(q);
+    }
+
+    public static boolean matchesBlock(BlockState state, ResourceLocation id, String rawQuery) {
+        String q = normalize(rawQuery);
+        if (q.isEmpty()) {
+            return true;
+        }
+        if (q.startsWith("#")) {
+            return blockHasTag(state, q.substring(1));
+        }
+        if (q.startsWith("@")) {
+            return idMatches(id, q.substring(1));
+        }
+        String name = state.getBlock().getName().getString().toLowerCase(Locale.ROOT);
+        String idStr = id.toString().toLowerCase(Locale.ROOT);
+        return name.contains(q) || idStr.contains(q);
+    }
+
+    /** Tag id from a {@code #namespace:path} query, or null when the query is not a tag. */
+    public static ResourceLocation tagId(String rawQuery) {
+        String q = normalize(rawQuery);
+        if (!q.startsWith("#")) {
+            return null;
+        }
+        return parseTagId(q.substring(1));
     }
 
     public static boolean matchesEntity(EntityType<?> type, ResourceLocation id, String rawQuery) {
@@ -76,6 +102,15 @@ public final class CatalogSearch {
         }
         TagKey<Item> key = TagKey.create(Registries.ITEM, tagId);
         return new ItemStack(item).is(key);
+    }
+
+    private static boolean blockHasTag(BlockState state, String tagQuery) {
+        ResourceLocation tagId = parseTagId(tagQuery);
+        if (tagId == null) {
+            return false;
+        }
+        TagKey<net.minecraft.world.level.block.Block> key = TagKey.create(Registries.BLOCK, tagId);
+        return state.is(key);
     }
 
     private static boolean entityHasTag(EntityType<?> type, String tagQuery) {

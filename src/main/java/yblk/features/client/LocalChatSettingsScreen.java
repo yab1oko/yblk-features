@@ -7,6 +7,11 @@ import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.TextField;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.chat.LocalChat;
 import yblk.features.config.FeaturesConfig;
 import yblk.features.network.LocalChatConfigPacket;
@@ -15,21 +20,19 @@ import yblk.features.network.ModNetwork;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LocalChatSettingsScreen extends Screen {
+public class LocalChatSettingsScreen extends BaseSettingsScreen {
     private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFF4A9EBF;
     private static final int CHECK = 9;
     private static final int ROW = 16;
     private static final int PANEL_W = 340;
 
-    private final Screen parent;
     private final List<Hit> hits = new ArrayList<>();
     private EditBox rangeBox;
     private boolean canEdit;
 
     public LocalChatSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".local_chat"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".local_chat"), parent);
     }
 
     @Override
@@ -44,7 +47,7 @@ public class LocalChatSettingsScreen extends Screen {
         int panelR = width - panelL;
 
         int boxW = 48;
-        rangeBox = new EditBox(font, panelR - 12 - boxW, 0, boxW, 14, Component.empty());
+        rangeBox = new TextField(font, panelR - 12 - boxW, 0, boxW, 14, Component.empty());
         rangeBox.setMaxLength(4);
         rangeBox.setValue(Integer.toString(FeaturesConfig.localChatRange));
         rangeBox.setFilter(s -> s.isEmpty() || s.chars().allMatch(Character::isDigit));
@@ -61,7 +64,9 @@ public class LocalChatSettingsScreen extends Screen {
         });
         addRenderableWidget(rangeBox);
 
-        addRenderableWidget(new DarkButton(width / 2 - 45, height - bottomPad - btnH, 90, btnH,
+        addRenderableWidget(darkButton(width / 2 - 96, height - bottomPad - btnH, 90, btnH,
+                Component.translatable("screen." + Features.MODID + ".reset_section"), this::resetSection));
+        addRenderableWidget(darkButton(width / 2 + 6, height - bottomPad - btnH, 90, btnH,
                 Component.translatable("gui.done"), this::onClose));
     }
 
@@ -107,6 +112,8 @@ public class LocalChatSettingsScreen extends Screen {
         rangeBox.setY(y);
         rangeBox.active = canEdit;
         rangeBox.setEditable(canEdit);
+        dirtyDot(graphics, x - 6, y + 4, FeaturesConfig.localChatRange != 100);
+        tipKey(x, y, panelR - 12 - x, ROW, "screen." + Features.MODID + ".local_chat.range.value");
         y += ROW + 6;
 
         y = drawSection(graphics, x, y, "screen." + Features.MODID + ".local_chat.admin");
@@ -130,8 +137,7 @@ public class LocalChatSettingsScreen extends Screen {
     }
 
     private int drawSection(GuiGraphics g, int x, int y, String key) {
-        g.drawString(font, Component.translatable(key), x, y, 0xC8C8D0, false);
-        return y + 12;
+        return SectionHeader.draw(g, font, x, y, Component.translatable(key));
     }
 
     private int drawCheckRow(GuiGraphics g, int x, int y, int mx, int my, boolean on,
@@ -139,6 +145,8 @@ public class LocalChatSettingsScreen extends Screen {
         drawCheck(g, x, y + 3, on && editable);
         g.drawString(font, Component.translatable(labelKey), x + CHECK + 6, y + 3,
                 editable ? (on ? 0xF0F0F0 : 0x9A9AA8) : 0x606068, false);
+        dirtyDot(g, x - 6, y + 4, !on);
+        tipKey(x, y, Math.max(40, width - x - 24), ROW, labelKey);
         if (editable) {
             hits.add(new Hit(x, y, Math.max(40, width - x - 24), ROW - 2, action));
         }
@@ -146,13 +154,7 @@ public class LocalChatSettingsScreen extends Screen {
     }
 
     private static void drawCheck(GuiGraphics g, int x, int y, boolean on) {
-        g.fill(x, y, x + CHECK, y + 1, 0xFFE8E8F0);
-        g.fill(x, y + CHECK - 1, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        g.fill(x, y, x + 1, y + CHECK, 0xFFE8E8F0);
-        g.fill(x + CHECK - 1, y, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        if (on) {
-            g.fill(x + 2, y + 2, x + CHECK - 2, y + CHECK - 2, ACCENT);
-        }
+        Checks.box(g, x, y, CHECK, on, ACCENT);
     }
 
     @Override
@@ -168,51 +170,27 @@ public class LocalChatSettingsScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
-        FeatureSettingsBackdrop.render(graphics, width, height);
-    }
-
-    @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
+    private void resetSection() {
+        if (!canEdit) {
+            return;
         }
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
+        FeaturesConfig.setLocalChatRange(100);
+        FeaturesConfig.setLocalChatAdminBypass(true);
+        rangeBox.setValue("100");
+        ModNetwork.sendToServer(LocalChatConfigPacket.current());
     }
 
     private record Hit(int x, int y, int w, int h, Runnable action) {
     }
 
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
 
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
+    @Override
+    protected int buttonAccent() {
+        return ACCENT;
+    }
 
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A48 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    @Override
+    protected int buttonHover() {
+        return 0xFF2A3A48;
     }
 }

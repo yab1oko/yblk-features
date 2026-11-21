@@ -22,6 +22,16 @@ public abstract class Feature {
         return id;
     }
 
+    /** Menu group. New modules override this or land in {@link FeatureCategory#byId}. */
+    public FeatureCategory category() {
+        return FeatureCategory.byId(id);
+    }
+
+    /** Shown as the Optional badge. Inventory Revamp is on out of the box; the rest start off. */
+    public boolean optionalByDefault() {
+        return !"inventory_revamp".equals(id);
+    }
+
     public ResourceLocation getIcon() {
         return icon;
     }

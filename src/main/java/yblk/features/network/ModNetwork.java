@@ -49,6 +49,66 @@ public final class ModNetwork {
                 .decoder(ItemRemoverConfigPacket::decode)
                 .consumerMainThread(ItemRemoverConfigPacket::handle)
                 .add();
+        CHANNEL.messageBuilder(PresetPacket.class, id++)
+                .encoder(PresetPacket::encode)
+                .decoder(PresetPacket::decode)
+                .consumerMainThread(PresetPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(CommandBlockerPacket.class, id++)
+                .encoder(CommandBlockerPacket::encode)
+                .decoder(CommandBlockerPacket::decode)
+                .consumerMainThread(CommandBlockerPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(InteractionBlockerPacket.class, id++)
+                .encoder(InteractionBlockerPacket::encode)
+                .decoder(InteractionBlockerPacket::decode)
+                .consumerMainThread(InteractionBlockerPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ToolRestrictionsPacket.class, id++)
+                .encoder(ToolRestrictionsPacket::encode)
+                .decoder(ToolRestrictionsPacket::decode)
+                .consumerMainThread(ToolRestrictionsPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(PortalLockPacket.class, id++)
+                .encoder(PortalLockPacket::encode)
+                .decoder(PortalLockPacket::decode)
+                .consumerMainThread(PortalLockPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ElytraRulesPacket.class, id++)
+                .encoder(ElytraRulesPacket::encode)
+                .decoder(ElytraRulesPacket::decode)
+                .consumerMainThread(ElytraRulesPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(MobDropsPacket.class, id++)
+                .encoder(MobDropsPacket::encode)
+                .decoder(MobDropsPacket::decode)
+                .consumerMainThread(MobDropsPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(VillagerTradesPacket.class, id++)
+                .encoder(VillagerTradesPacket::encode)
+                .decoder(VillagerTradesPacket::decode)
+                .consumerMainThread(VillagerTradesPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ItemWeightPacket.class, id++)
+                .encoder(ItemWeightPacket::encode)
+                .decoder(ItemWeightPacket::decode)
+                .consumerMainThread(ItemWeightPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ServerTweaksPacket.class, id++)
+                .encoder(ServerTweaksPacket::encode)
+                .decoder(ServerTweaksPacket::decode)
+                .consumerMainThread(ServerTweaksPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ServerActionPacket.class, id++)
+                .encoder(ServerActionPacket::encode)
+                .decoder(ServerActionPacket::decode)
+                .consumerMainThread(ServerActionPacket::handle)
+                .add();
+        CHANNEL.messageBuilder(ServerIconPacket.class, id++)
+                .encoder(ServerIconPacket::encode)
+                .decoder(ServerIconPacket::decode)
+                .consumerMainThread(ServerIconPacket::handle)
+                .add();
     }
 
     public static void sendToPlayer(ServerPlayer player, Object packet) {

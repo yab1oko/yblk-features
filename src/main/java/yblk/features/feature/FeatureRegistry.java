@@ -8,9 +8,18 @@ import yblk.features.inventory.InventoryRevampFeature;
 import yblk.features.names.HideNamesFeature;
 import yblk.features.night.TrueNightFeature;
 import yblk.features.remover.ItemRemoverFeature;
+import yblk.features.restrict.CommandBlockerFeature;
+import yblk.features.restrict.InteractionBlockerFeature;
+import yblk.features.restrict.ToolRestrictionsFeature;
 import yblk.features.rfp.RealFirstPersonFeature;
+import yblk.features.mobs.MobDropsFeature;
+import yblk.features.mobs.VillagerTradesFeature;
 import yblk.features.spawn.MobSpawnBlockFeature;
+import yblk.features.server.ServerTweaksFeature;
+import yblk.features.weight.ItemWeightFeature;
 import yblk.features.wetness.WetnessFeature;
+import yblk.features.world.ElytraRulesFeature;
+import yblk.features.world.PortalLockFeature;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,10 +42,19 @@ public final class FeatureRegistry {
         // …then admin-only (FeaturesScreen draws the divider before these).
         FEATURES.add(new InventoryRevampFeature());
         FEATURES.add(new MobSpawnBlockFeature());
+        FEATURES.add(new MobDropsFeature());
+        FEATURES.add(new VillagerTradesFeature());
         FEATURES.add(new BorderDangerFeature());
+        FEATURES.add(new PortalLockFeature());
+        FEATURES.add(new ElytraRulesFeature());
         FEATURES.add(new LocalChatFeature());
         FEATURES.add(new WetnessFeature());
+        FEATURES.add(new ItemWeightFeature());
         FEATURES.add(new ItemRemoverFeature());
+        FEATURES.add(new CommandBlockerFeature());
+        FEATURES.add(new InteractionBlockerFeature());
+        FEATURES.add(new ToolRestrictionsFeature());
+        FEATURES.add(new ServerTweaksFeature());
     }
 
     public static List<Feature> all() {

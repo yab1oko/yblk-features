@@ -14,6 +14,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.registries.ForgeRegistries;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.TextField;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SearchableEntryList;
+import yblk.features.client.ui.ChoiceButton;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.config.FeaturesConfig;
 import yblk.features.spawn.MobSpawnCatalog;
 import yblk.features.spawn.MobSpawnCatalog.Entry;
@@ -22,7 +29,7 @@ import yblk.features.spawn.MobSpawnCatalog.MobTab;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MobSpawnSettingsScreen extends Screen {
+public class MobSpawnSettingsScreen extends BaseSettingsScreen {
         private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFF4EC9B0;
     private static final int ROW_H = 22;
@@ -31,9 +38,9 @@ public class MobSpawnSettingsScreen extends Screen {
     private static final int CHECK_FRAME = 0xFFE8E8F0;
     private static final int CHECK_CROSS = 0xFFE05050;
 
-    private final Screen parent;
     private MobTab tab = MobTab.ALL;
     private String searchQuery = "";
+    private final SearchableEntryList<Entry> catalog = new SearchableEntryList<>();
     private List<Entry> entries = List.of();
     private int selectedIndex;
     private int scrollOffset;
@@ -47,17 +54,14 @@ public class MobSpawnSettingsScreen extends Screen {
     private int previewY;
     private LivingEntity previewEntity;
     private EditBox searchBox;
-    private final List<TabButton> tabButtons = new ArrayList<>();
 
     public MobSpawnSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".mob_spawn"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".mob_spawn"), parent);
     }
 
     @Override
     protected void init() {
         clearWidgets();
-        tabButtons.clear();
 
         int contentTop = 36;
         int contentBottom = height - 36;
@@ -86,13 +90,21 @@ public class MobSpawnSettingsScreen extends Screen {
                     ? Math.max(28, tabsBudget - used)
                     : Math.max(28, Math.round(ideal[i] * (tabsBudget / (float) idealSum)));
             used += tw;
-            TabButton btn = new TabButton(tabX, tabY, tw, 20, tabs[i]);
-            tabButtons.add(btn);
-            addRenderableWidget(btn);
+            MobTab tabValue = tabs[i];
+            addRenderableWidget(new ChoiceButton(font, tabX, tabY, tw, 20,
+                    Component.translatable(tabValue.langKey()),
+                    () -> tab == tabValue,
+                    () -> {
+                        tab = tabValue;
+                        selectedIndex = 0;
+                        scrollOffset = 0;
+                        refreshEntries();
+                    },
+                    ACCENT, 0xFF2A4A44));
             tabX += tw + tabGap;
         }
 
-        searchBox = new EditBox(font, listLeft, contentTop + 26, listWidth, 18,
+        searchBox = new TextField(font, listLeft, contentTop + 26, listWidth, 18,
                 Component.translatable("screen." + Features.MODID + ".mob_spawn.search"));
         searchBox.setMaxLength(64);
         searchBox.setValue(searchQuery);
@@ -113,16 +125,24 @@ public class MobSpawnSettingsScreen extends Screen {
         int btnW = (previewW - gap) / 2;
         int row1Y = contentTop;
         int row2Y = contentTop + 24;
-        addRenderableWidget(new DarkButton(previewLeft, row1Y, btnW, 20,
+        addRenderableWidget(darkButton(previewLeft, row1Y, btnW, 20,
                 Component.translatable("screen." + Features.MODID + ".mob_spawn.enable_all"),
                 () -> MobSpawnCatalog.setAllBlocked(entries, false)));
-        addRenderableWidget(new DarkButton(previewLeft + btnW + gap, row1Y, btnW, 20,
+        addRenderableWidget(darkButton(previewLeft + btnW + gap, row1Y, btnW, 20,
                 Component.translatable("screen." + Features.MODID + ".mob_spawn.disable_all"),
                 () -> MobSpawnCatalog.setAllBlocked(entries, true)));
-        addRenderableWidget(new ModeButton(previewLeft, row2Y, btnW, 20, false));
-        addRenderableWidget(new ModeButton(previewLeft + btnW + gap, row2Y, btnW, 20, true));
+        addRenderableWidget(new ChoiceButton(font, previewLeft, row2Y, btnW, 20,
+                Component.translatable("screen." + Features.MODID + ".mob_spawn.mode.natural"),
+                () -> !FeaturesConfig.mobSpawnBlockAllSources,
+                () -> FeaturesConfig.setMobSpawnBlockAllSources(false),
+                ACCENT, 0xFF2A4A44));
+        addRenderableWidget(new ChoiceButton(font, previewLeft + btnW + gap, row2Y, btnW, 20,
+                Component.translatable("screen." + Features.MODID + ".mob_spawn.mode.all"),
+                () -> FeaturesConfig.mobSpawnBlockAllSources,
+                () -> FeaturesConfig.setMobSpawnBlockAllSources(true),
+                ACCENT, 0xFF2A4A44));
 
-        addRenderableWidget(new DarkButton(width / 2 - 50, height - 28, 100, 20,
+        addRenderableWidget(darkButton(width / 2 - 50, height - 28, 100, 20,
                 Component.translatable("gui.done"), this::onClose));
 
         refreshEntries();
@@ -170,17 +190,7 @@ public class MobSpawnSettingsScreen extends Screen {
     }
 
     private static void drawCheckBox(GuiGraphics graphics, int x, int y, boolean blocked) {
-        // Hollow frame only
-        graphics.fill(x, y, x + CHECK_SIZE, y + 1, CHECK_FRAME);
-        graphics.fill(x, y + CHECK_SIZE - 1, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_FRAME);
-        graphics.fill(x, y, x + 1, y + CHECK_SIZE, CHECK_FRAME);
-        graphics.fill(x + CHECK_SIZE - 1, y, x + CHECK_SIZE, y + CHECK_SIZE, CHECK_FRAME);
-        if (blocked) {
-            for (int i = 2; i < CHECK_SIZE - 2; i++) {
-                graphics.fill(x + i, y + i, x + i + 1, y + i + 1, CHECK_CROSS);
-                graphics.fill(x + CHECK_SIZE - 1 - i, y + i, x + CHECK_SIZE - i, y + i + 1, CHECK_CROSS);
-            }
-        }
+        Checks.cross(graphics, x, y, CHECK_SIZE, blocked, CHECK_CROSS);
     }
 
     private int previewScale(LivingEntity entity) {
@@ -210,30 +220,28 @@ public class MobSpawnSettingsScreen extends Screen {
         graphics.fill(listLeft - 2, listTop - 2, listLeft + listWidth + 2, listTop + listHeight + 2, PANEL);
         FeaturesScreen.drawGradientBorder(graphics, listLeft - 2, listTop - 2, listWidth + 4, listHeight + 4, ACCENT, 0xFF0A0A0E);
 
-        int visible = Math.max(1, listHeight / ROW_H);
-        for (int i = 0; i < visible; i++) {
-            int index = scrollOffset + i;
-            if (index >= entries.size()) {
-                break;
-            }
-            Entry entry = entries.get(index);
-            int rowY = listTop + i * ROW_H;
-            boolean selected = index == selectedIndex;
-            boolean hovered = mouseX >= listLeft && mouseX < listLeft + listWidth
-                    && mouseY >= rowY && mouseY < rowY + ROW_H;
-            if (selected) {
-                graphics.fill(listLeft, rowY, listLeft + listWidth, rowY + ROW_H, 0xFF2A3A38);
-            } else if (hovered) {
-                graphics.fill(listLeft, rowY, listLeft + listWidth, rowY + ROW_H, 0xFF1E1E26);
-            }
-
-            int checkX = listLeft + LIST_PAD;
-            int checkY = rowY + (ROW_H - CHECK_SIZE) / 2;
-            drawCheckBox(graphics, checkX, checkY, entry.isBlocked());
-
-            Component name = entry.type().getDescription();
-            graphics.drawString(font, name, checkX + CHECK_SIZE + 6, rowY + 7, selected ? 0xF0F0F0 : 0xB8B8C0, false);
-        }
+        catalog.left = listLeft;
+        catalog.top = listTop;
+        catalog.width = listWidth;
+        catalog.height = listHeight;
+        catalog.rowHeight = ROW_H;
+        catalog.scroll = scrollOffset;
+        catalog.selectedIndex = selectedIndex;
+        catalog.selectedColor = 0xFF2A3A38;
+        catalog.hoverColor = 0xFF1E1E26;
+        catalog.setEntries(entries);
+        catalog.render(graphics, mouseX, mouseY, (row, g) -> {
+            Entry entry = row.entry();
+            int checkX = row.x() + LIST_PAD;
+            int checkY = row.y() + (ROW_H - CHECK_SIZE) / 2;
+            drawCheckBox(g, checkX, checkY, entry.isBlocked());
+            g.drawString(font, entry.type().getDescription(), checkX + CHECK_SIZE + 6, row.y() + 7,
+                    row.selected() ? 0xF0F0F0 : 0xB8B8C0, false);
+            tip(row.x(), row.y(), listWidth, ROW_H,
+                    Component.translatable("screen." + Features.MODID + ".mob_spawn.row.tip"));
+        });
+        ScrollBar.draw(graphics, listLeft + listWidth + 8, listTop, listTop + listHeight, scrollOffset, maxScroll(), ACCENT,
+                v -> scrollOffset = v);
 
         graphics.fill(previewLeft, listTop - 2, previewRight, listTop + listHeight + 2, PANEL);
         FeaturesScreen.drawGradientBorder(graphics,
@@ -322,112 +330,16 @@ public class MobSpawnSettingsScreen extends Screen {
             previewEntity.discard();
             previewEntity = null;
         }
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
+        super.onClose();
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics) {
-        // Skip vanilla gradient / dirt - keep the world sharp with a light dim only.
-        FeatureSettingsBackdrop.render(graphics, width, height);
+    protected int buttonAccent() {
+        return ACCENT;
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
-    private class TabButton extends AbstractWidget {
-        private final MobTab tabValue;
-
-        private TabButton(int x, int y, int w, int h, MobTab tabValue) {
-            super(x, y, w, h, Component.translatable(tabValue.langKey()));
-            this.tabValue = tabValue;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean active = tab == tabValue;
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, active ? 0xFF2A4A44 : 0xFF1A1A22);
-            if (active) {
-                graphics.fill(getX(), getY() + height - 2, getX() + width, getY() + height, ACCENT);
-            }
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    active ? 0xF0F0F0 : 0x9A9AA8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            tab = tabValue;
-            selectedIndex = 0;
-            scrollOffset = 0;
-            refreshEntries();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
-    }
-
-    private class ModeButton extends AbstractWidget {
-        private final boolean allSources;
-
-        private ModeButton(int x, int y, int w, int h, boolean allSources) {
-            super(x, y, w, h, Component.translatable(allSources
-                    ? "screen." + Features.MODID + ".mob_spawn.mode.all"
-                    : "screen." + Features.MODID + ".mob_spawn.mode.natural"));
-            this.allSources = allSources;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean active = FeaturesConfig.mobSpawnBlockAllSources == allSources;
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, active ? 0xFF2A4A44 : 0xFF1A1A22);
-            if (active) {
-                graphics.fill(getX(), getY() + height - 2, getX() + width, getY() + height, ACCENT);
-            }
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    active ? 0xF0F0F0 : 0x9A9AA8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            FeaturesConfig.setMobSpawnBlockAllSources(allSources);
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
-    }
-
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
-
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
-
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A38 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    protected int buttonHover() {
+        return 0xFF2A3A38;
     }
 }

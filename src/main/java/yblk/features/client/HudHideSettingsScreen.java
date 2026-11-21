@@ -7,6 +7,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollPanel;
+import yblk.features.client.ui.SectionHeader;
+import yblk.features.client.ui.UiFrames;
 import yblk.features.config.FeaturesConfig;
 import yblk.features.hud.HudElement;
 import yblk.features.hud.HudHide;
@@ -15,7 +20,7 @@ import yblk.features.hud.HudHideStyle;
 import java.util.ArrayList;
 import java.util.List;
 
-public class HudHideSettingsScreen extends Screen {
+public class HudHideSettingsScreen extends BaseSettingsScreen {
         private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFFE05050;
     private static final int CHECK = 9;
@@ -23,7 +28,6 @@ public class HudHideSettingsScreen extends Screen {
     private static final int CHOICE_H = 16;
     private static final int PANEL_W = 340;
 
-    private final Screen parent;
     private final List<Hit> hits = new ArrayList<>();
     private int scroll;
     private int maxScroll;
@@ -36,8 +40,7 @@ public class HudHideSettingsScreen extends Screen {
     private boolean canEdit;
 
     public HudHideSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".hud_hide"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".hud_hide"), parent);
     }
 
     @Override
@@ -58,7 +61,9 @@ public class HudHideSettingsScreen extends Screen {
         maxScroll = Math.max(0, contentH - Math.max(1, panelBottom - contentTop - 4));
         scroll = Mth.clamp(scroll, 0, maxScroll);
 
-        addRenderableWidget(new DarkButton(width / 2 - 45, height - bottomPad - btnH, 90, btnH,
+        addRenderableWidget(darkButton(width / 2 - 96, height - bottomPad - btnH, 90, btnH,
+                Component.translatable("screen." + Features.MODID + ".reset_section"), this::resetSection));
+        addRenderableWidget(darkButton(width / 2 + 6, height - bottomPad - btnH, 90, btnH,
                 Component.translatable("gui.done"), this::onClose));
     }
 
@@ -97,11 +102,8 @@ public class HudHideSettingsScreen extends Screen {
         this.renderBackground(graphics);
         graphics.drawCenteredString(font, title, width / 2, 6, 0xF0F0F0);
 
-        graphics.fill(panelL, panelTop, panelR, panelBottom, PANEL);
-        FeaturesScreen.drawGradientBorder(graphics, panelL, panelTop, panelR - panelL,
-                panelBottom - panelTop, ACCENT, 0xFF0A0A0E);
-
-        graphics.enableScissor(panelL + 2, panelTop + 2, panelR - 2, panelBottom - 2);
+        UiFrames.panel(graphics, panelL, panelTop, panelR - panelL, panelBottom - panelTop, PANEL, ACCENT);
+        ScrollPanel.begin(graphics, panelL, panelTop, panelR, panelBottom);
 
         int x = panelL + 12;
         int right = panelR - 12;
@@ -117,6 +119,7 @@ public class HudHideSettingsScreen extends Screen {
         y = drawSection(graphics, x, y, "screen." + Features.MODID + ".hud_hide.hide");
         for (HudElement element : HudElement.values()) {
             boolean hidden = FeaturesConfig.isHudElementHidden(element);
+            dirtyDot(graphics, x - 6, y + 4, hidden);
             y = drawCheckRow(graphics, x, y, mouseX, mouseY, hidden,
                     () -> {
                         if (canEdit) {
@@ -128,6 +131,7 @@ public class HudHideSettingsScreen extends Screen {
 
         y += 6;
         y = drawSection(graphics, x, y, "screen." + Features.MODID + ".hud_hide.style");
+        dirtyDot(graphics, x - 6, y + 4, FeaturesConfig.hudHideStyle != HudHideStyle.FADE);
         y = drawStyleRow(graphics, x, right, y, mouseX, mouseY);
 
         y += 4;
@@ -143,6 +147,7 @@ public class HudHideSettingsScreen extends Screen {
             }
             boolean on = FeaturesConfig.isHudShowOnChange(element);
             boolean enabledRow = canEdit && FeaturesConfig.isHudElementHidden(element);
+            dirtyDot(graphics, x - 6, y + 4, !on);
             y = drawCheckRow(graphics, x, y, mouseX, mouseY, on,
                     () -> {
                         if (enabledRow) {
@@ -155,6 +160,7 @@ public class HudHideSettingsScreen extends Screen {
         if (canSeeAdminLock()) {
             y += 8;
             y = drawSection(graphics, x, y, "screen." + Features.MODID + ".hud_hide.admin");
+            dirtyDot(graphics, x - 6, y + 4, FeaturesConfig.hudHideAdminLocked);
             drawCheckRow(graphics, x, y, mouseX, mouseY, FeaturesConfig.hudHideAdminLocked,
                     () -> {
                         FeaturesConfig.setHudHideAdminLocked(!FeaturesConfig.hudHideAdminLocked);
@@ -166,22 +172,13 @@ public class HudHideSettingsScreen extends Screen {
                     true);
         }
 
-        graphics.disableScissor();
-
-        if (maxScroll > 0) {
-            int trackH = panelBottom - panelTop - 8;
-            int thumbH = Math.max(12, trackH * trackH / (trackH + maxScroll));
-            int thumbY = panelTop + 4 + (trackH - thumbH) * scroll / maxScroll;
-            graphics.fill(panelR - 5, panelTop + 4, panelR - 3, panelBottom - 4, 0xFF2A2A32);
-            graphics.fill(panelR - 5, thumbY, panelR - 3, thumbY + thumbH, ACCENT);
-        }
+        ScrollPanel.end(graphics, panelR, panelTop, panelBottom, scroll, maxScroll, ACCENT, v -> scroll = v);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     private int drawSection(GuiGraphics g, int x, int y, String key) {
-        g.drawString(font, Component.translatable(key), x, y, 0xC8C8D0, false);
-        return y + 12;
+        return SectionHeader.draw(g, font, x, y, Component.translatable(key));
     }
 
     private int drawStyleRow(GuiGraphics g, int left, int right, int y, int mx, int my) {
@@ -199,6 +196,7 @@ public class HudHideSettingsScreen extends Screen {
             }
             g.drawCenteredString(font, Component.translatable(style.langKey()),
                     x + w / 2, y + (CHOICE_H - 8) / 2, active ? 0xF0F0F0 : 0x9A9AA8);
+            tipKey(x, y, w, CHOICE_H, style.langKey());
             if (canEdit) {
                 hits.add(new Hit(x, y, w, CHOICE_H, () -> FeaturesConfig.setHudHideStyle(style)));
             }
@@ -215,6 +213,7 @@ public class HudHideSettingsScreen extends Screen {
             g.fill(x, y + 3, x + CHECK, y + 3 + CHECK, 0x66000000);
         }
         g.drawString(font, Component.translatable(labelKey), x + CHECK + 6, y + 3, color, false);
+        tipKey(x, y, panelR - 12 - x, ROW, labelKey);
         if (interactive) {
             hits.add(new Hit(x, y, panelR - 12 - x, ROW - 2, action));
         }
@@ -222,13 +221,7 @@ public class HudHideSettingsScreen extends Screen {
     }
 
     private static void drawCheck(GuiGraphics g, int x, int y, boolean on) {
-        g.fill(x, y, x + CHECK, y + 1, 0xFFE8E8F0);
-        g.fill(x, y + CHECK - 1, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        g.fill(x, y, x + 1, y + CHECK, 0xFFE8E8F0);
-        g.fill(x + CHECK - 1, y, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        if (on) {
-            g.fill(x + 2, y + 2, x + CHECK - 2, y + CHECK - 2, ACCENT);
-        }
+        Checks.box(g, x, y, CHECK, on, ACCENT);
     }
 
     private boolean insidePanel(double mx, double my) {
@@ -260,52 +253,31 @@ public class HudHideSettingsScreen extends Screen {
         return true;
     }
 
-    @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
-    }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
-        // Skip vanilla gradient / dirt - keep the world sharp with a light dim only.
-        FeatureSettingsBackdrop.render(graphics, width, height);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
     private record Hit(int x, int y, int w, int h, Runnable action) {
     }
 
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
 
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
+    private void resetSection() {
+        if (!canEdit) {
+            return;
         }
+        FeaturesConfig.setHudHideStyle(HudHideStyle.FADE);
+        FeaturesConfig.setHudHideAdminLocked(false);
+        for (HudElement element : HudElement.values()) {
+            FeaturesConfig.setHudElementHidden(element, false);
+            if (element.supportsShowOnChange()) {
+                FeaturesConfig.setHudShowOnChange(element, true);
+            }
+        }
+    }
 
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A38 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
+    @Override
+    protected int buttonAccent() {
+        return ACCENT;
+    }
 
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    @Override
+    protected int buttonHover() {
+        return 0xFF2A3A38;
     }
 }

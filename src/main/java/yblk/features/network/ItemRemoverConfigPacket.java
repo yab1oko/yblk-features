@@ -7,48 +7,61 @@ import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.PacketDistributor;
+import yblk.features.client.ItemRemoverClient;
 import yblk.features.config.FeaturesConfig;
+import yblk.features.config.FeaturesConfig.ItemBan;
 import yblk.features.remover.ItemRemover;
 import yblk.features.remover.ItemRemoverEvents;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
-/** Sync item-remover toggle + banned IDs. C2S admin / S2C truth. */
+/** Sync item-remover toggle and per-item flags. C2S admin / S2C truth. */
 public class ItemRemoverConfigPacket {
     private final boolean enabled;
-    private final List<String> bannedIds;
+    private final Map<String, ItemBan> bans;
 
-    public ItemRemoverConfigPacket(boolean enabled, List<String> bannedIds) {
+    public ItemRemoverConfigPacket(boolean enabled, Map<String, ItemBan> bans) {
         this.enabled = enabled;
-        this.bannedIds = bannedIds;
+        this.bans = bans;
     }
 
     public static ItemRemoverConfigPacket current() {
-        return new ItemRemoverConfigPacket(
-                FeaturesConfig.itemRemoverEnabled,
-                FeaturesConfig.bannedItemIdList());
+        Map<String, ItemBan> copy = new HashMap<>();
+        for (Map.Entry<String, ItemBan> entry : FeaturesConfig.itemBans.entrySet()) {
+            copy.put(entry.getKey(), entry.getValue().copy());
+        }
+        return new ItemRemoverConfigPacket(FeaturesConfig.itemRemoverEnabled, copy);
     }
 
     public static void encode(ItemRemoverConfigPacket packet, FriendlyByteBuf buf) {
         buf.writeBoolean(packet.enabled);
-        buf.writeVarInt(packet.bannedIds.size());
-        for (String id : packet.bannedIds) {
-            buf.writeUtf(id);
+        buf.writeVarInt(packet.bans.size());
+        for (Map.Entry<String, ItemBan> entry : packet.bans.entrySet()) {
+            ItemBan ban = entry.getValue();
+            buf.writeUtf(entry.getKey());
+            buf.writeBoolean(ban.inventory);
+            buf.writeBoolean(ban.recipes);
+            buf.writeBoolean(ban.loot);
         }
     }
 
     public static ItemRemoverConfigPacket decode(FriendlyByteBuf buf) {
         boolean enabled = buf.readBoolean();
         int count = buf.readVarInt();
-        List<String> ids = new ArrayList<>(count);
+        Map<String, ItemBan> bans = new HashMap<>();
         for (int i = 0; i < count; i++) {
-            ids.add(buf.readUtf());
+            String id = buf.readUtf();
+            ItemBan ban = new ItemBan();
+            ban.inventory = buf.readBoolean();
+            ban.recipes = buf.readBoolean();
+            ban.loot = buf.readBoolean();
+            if (id != null && !id.isBlank()) {
+                bans.put(id.trim().toLowerCase(), ban);
+            }
         }
-        return new ItemRemoverConfigPacket(enabled, ids);
+        return new ItemRemoverConfigPacket(enabled, bans);
     }
 
     public static void handle(ItemRemoverConfigPacket packet, Supplier<NetworkEvent.Context> ctx) {
@@ -60,7 +73,7 @@ public class ItemRemoverConfigPacket {
                     return;
                 }
                 FeaturesConfig.setItemRemoverEnabled(packet.enabled);
-                FeaturesConfig.setBannedItemIds(new HashSet<>(packet.bannedIds));
+                FeaturesConfig.replaceBans(packet.bans, true);
                 ItemRemoverEvents.onConfigChanged(sender.server);
                 ModNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(), current());
             } else {
@@ -73,13 +86,8 @@ public class ItemRemoverConfigPacket {
     private static final class Client {
         private static void apply(ItemRemoverConfigPacket packet) {
             FeaturesConfig.itemRemoverEnabled = packet.enabled;
-            Set<String> set = new HashSet<>();
-            for (String id : packet.bannedIds) {
-                if (id != null && !id.isBlank()) {
-                    set.add(id.trim().toLowerCase());
-                }
-            }
-            FeaturesConfig.bannedItemIds = set;
+            FeaturesConfig.replaceBans(packet.bans, false);
+            ItemRemoverClient.onSynced();
         }
     }
 }

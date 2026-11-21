@@ -10,6 +10,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraftforge.registries.ForgeRegistries;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.TextField;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SectionHeader;
 import yblk.features.config.FeaturesConfig;
 import yblk.features.names.HideNames;
 import yblk.features.names.HideNamesMode;
@@ -18,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class HideNamesSettingsScreen extends Screen {
+public class HideNamesSettingsScreen extends BaseSettingsScreen {
     private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFFE8E8F0;
     private static final int CHECK = 9;
@@ -26,7 +31,6 @@ public class HideNamesSettingsScreen extends Screen {
     private static final int CHOICE_H = 18;
     private static final int PANEL_W = 380;
 
-    private final Screen parent;
     private final List<Hit> hits = new ArrayList<>();
     private EditBox addBox;
     private int scroll;
@@ -40,8 +44,7 @@ public class HideNamesSettingsScreen extends Screen {
     private boolean canEditAdmin;
 
     public HideNamesSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".hide_names"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".hide_names"), parent);
     }
 
     @Override
@@ -58,7 +61,7 @@ public class HideNamesSettingsScreen extends Screen {
         panelBottom = height - bottomPad - btnH - 6;
         contentTop = panelTop + 8;
 
-        addBox = new EditBox(font, panelL + 12, 0, Math.max(40, panelR - panelL - 24 - 54), 16,
+        addBox = new TextField(font, panelL + 12, 0, Math.max(40, panelR - panelL - 24 - 54), 16,
                 Component.translatable("screen." + Features.MODID + ".hide_names.add_hint"));
         addBox.setMaxLength(128);
         addBox.setHint(Component.translatable("screen." + Features.MODID + ".hide_names.add_hint"));
@@ -70,7 +73,9 @@ public class HideNamesSettingsScreen extends Screen {
         scroll = Mth.clamp(scroll, 0, maxScroll);
         syncAddBox();
 
-        addRenderableWidget(new DarkButton(width / 2 - 45, height - bottomPad - btnH, 90, btnH,
+        addRenderableWidget(darkButton(width / 2 - 96, height - bottomPad - btnH, 90, btnH,
+                Component.translatable("screen." + Features.MODID + ".reset_section"), this::resetSection));
+        addRenderableWidget(darkButton(width / 2 + 6, height - bottomPad - btnH, 90, btnH,
                 Component.translatable("gui.done"), this::onClose));
     }
 
@@ -157,6 +162,7 @@ public class HideNamesSettingsScreen extends Screen {
         if (canSeeAdminLock()) {
             y += 8;
             y = drawSection(graphics, x, y, "screen." + Features.MODID + ".hide_names.admin");
+            dirtyDot(graphics, x - 6, y + 4, FeaturesConfig.hideNamesAdminLocked);
             y = drawCheckRow(graphics, x, y, mouseX, mouseY, FeaturesConfig.hideNamesAdminLocked,
                     () -> {
                         FeaturesConfig.setHideNamesAdminLocked(!FeaturesConfig.hideNamesAdminLocked);
@@ -183,6 +189,7 @@ public class HideNamesSettingsScreen extends Screen {
                 graphics.drawCenteredString(font,
                         Component.translatable("screen." + Features.MODID + ".hide_names.add"),
                         addBtnX + 25, addY + 4, hover ? 0xF0F0F0 : 0xC0C0C8);
+                tipKey(addBtnX, addY, 50, 16, "screen." + Features.MODID + ".hide_names.add");
                 hits.add(new Hit(addBtnX, addY, 50, 16, this::tryAddItem));
             }
 
@@ -198,13 +205,7 @@ public class HideNamesSettingsScreen extends Screen {
         }
         graphics.disableScissor();
 
-        if (maxScroll > 0) {
-            int trackH = panelBottom - panelTop - 8;
-            int thumbH = Math.max(12, trackH * trackH / (trackH + maxScroll));
-            int thumbY = panelTop + 4 + (trackH - thumbH) * scroll / maxScroll;
-            graphics.fill(panelR - 5, panelTop + 4, panelR - 3, panelBottom - 4, 0xFF2A2A32);
-            graphics.fill(panelR - 5, thumbY, panelR - 3, thumbY + thumbH, 0xFFC0C0C8);
-        }
+        ScrollBar.draw(graphics, panelR, panelTop, panelBottom, scroll, maxScroll, 0xFFC0C0C8, v -> scroll = v);
 
         for (var child : children()) {
             if (child == addBox) {
@@ -231,6 +232,10 @@ public class HideNamesSettingsScreen extends Screen {
             }
             g.drawCenteredString(font, Component.translatable(mode.langKey()),
                     x + w / 2, y + (CHOICE_H - 8) / 2, active ? 0xF0F0F0 : 0x9A9AA8);
+            if (active) {
+                dirtyDot(g, x + 2, y + 2, mode != HideNamesMode.MASKS);
+            }
+            tipKey(x, y, w, CHOICE_H, mode.langKey());
             hits.add(new Hit(x, y, w, CHOICE_H, () -> FeaturesConfig.setHideNamesMode(mode)));
             x += w + gap;
         }
@@ -265,14 +270,21 @@ public class HideNamesSettingsScreen extends Screen {
             g.drawCenteredString(font,
                     Component.translatable("screen." + Features.MODID + ".hide_names.remove"),
                     bx + 22, y + 3, hover ? 0xF0F0F0 : 0xC07070);
+            tipKey(bx, y, 44, ROW, "screen." + Features.MODID + ".hide_names.remove");
             hits.add(new Hit(bx, y + 1, 44, ROW - 4, () -> FeaturesConfig.removeHideNamesItem(id)));
         }
         return y + ROW;
     }
 
+    private void resetSection() {
+        FeaturesConfig.setHideNamesMode(HideNamesMode.MASKS);
+        FeaturesConfig.setHideNamesAll(false);
+        FeaturesConfig.setHideNamesByItems(true);
+        FeaturesConfig.setHideNamesAdminLocked(false);
+    }
+
     private int drawSection(GuiGraphics g, int x, int y, String key) {
-        g.drawString(font, Component.translatable(key), x, y, 0xC8C8D0, false);
-        return y + 12;
+        return SectionHeader.draw(g, font, x, y, Component.translatable(key));
     }
 
     private int drawCheckRow(GuiGraphics g, int x, int y, int mx, int my, boolean on,
@@ -283,6 +295,7 @@ public class HideNamesSettingsScreen extends Screen {
             g.fill(x, y + 3, x + CHECK, y + 3 + CHECK, 0x66000000);
         }
         g.drawString(font, Component.translatable(labelKey), x + CHECK + 6, y + 3, color, false);
+        tipKey(x, y, panelR - 12 - x, ROW, labelKey);
         if (interactive) {
             hits.add(new Hit(x, y, panelR - 12 - x, ROW - 2, action));
         }
@@ -290,13 +303,7 @@ public class HideNamesSettingsScreen extends Screen {
     }
 
     private static void drawCheck(GuiGraphics g, int x, int y, boolean on) {
-        g.fill(x, y, x + CHECK, y + 1, 0xFFE8E8F0);
-        g.fill(x, y + CHECK - 1, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        g.fill(x, y, x + 1, y + CHECK, 0xFFE8E8F0);
-        g.fill(x + CHECK - 1, y, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        if (on) {
-            g.fill(x + 2, y + 2, x + CHECK - 2, y + CHECK - 2, 0xFFE8E8F0);
-        }
+        Checks.box(g, x, y, CHECK, on, 0xFFE8E8F0);
     }
 
     private boolean insidePanel(double mx, double my) {
@@ -335,51 +342,17 @@ public class HideNamesSettingsScreen extends Screen {
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    @Override
-    public void onClose() {
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
-    }
-
-    @Override
-    public void renderBackground(GuiGraphics graphics) {
-        FeatureSettingsBackdrop.render(graphics, width, height);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return true;
-    }
-
     private record Hit(int x, int y, int w, int h, Runnable action) {
     }
 
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
 
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
+    @Override
+    protected int buttonAccent() {
+        return ACCENT;
+    }
 
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A2A32 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    @Override
+    protected int buttonHover() {
+        return 0xFF2A2A32;
     }
 }

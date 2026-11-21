@@ -6,6 +6,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 import yblk.features.config.FeaturesConfig;
+import yblk.features.config.FeaturesConfig.ItemBan;
 
 public final class ItemRemover {
     private ItemRemover() {
@@ -36,5 +37,30 @@ public final class ItemRemover {
 
     public static boolean isBanned(ResourceLocation id) {
         return isActive() && id != null && FeaturesConfig.isItemBanned(id);
+    }
+
+    public static boolean removesFromInventory(ItemStack stack) {
+        return flag(stack, ban -> ban.inventory);
+    }
+
+    public static boolean hidesFromRecipes(ItemStack stack) {
+        return flag(stack, ban -> ban.recipes);
+    }
+
+    public static boolean removesFromLoot(ItemStack stack) {
+        return flag(stack, ban -> ban.loot);
+    }
+
+    public static boolean removesFromInventory(Item item) {
+        return item != null && removesFromInventory(new ItemStack(item));
+    }
+
+    private static boolean flag(ItemStack stack, java.util.function.Predicate<ItemBan> test) {
+        if (!isActive() || stack == null || stack.isEmpty()) {
+            return false;
+        }
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ItemBan ban = FeaturesConfig.itemBan(id);
+        return ban != null && test.test(ban);
     }
 }

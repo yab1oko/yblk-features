@@ -9,6 +9,11 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraftforge.fml.ModList;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.Checks;
+import yblk.features.client.ui.ScrollBar;
+import yblk.features.client.ui.SectionHeader;
+import yblk.features.client.ui.SliderPaint;
 import yblk.features.compat.BetterCombatRfpCompat;
 import yblk.features.compat.PlayerAnimatorRfpCompat;
 import yblk.features.compat.TaczRfpCompat;
@@ -27,7 +32,7 @@ import java.util.function.Supplier;
  * Settings on the right; left side stays clear so the real first-person view is visible.
  * Pose chips force live animations on the player for offset tuning.
  */
-public class RealFirstPersonSettingsScreen extends Screen {
+public class RealFirstPersonSettingsScreen extends BaseSettingsScreen {
     private static final int PANEL = 0xFF16161C;
     private static final int ACCENT = 0xFF4AA8C8;
     private static final int CHECK = 9;
@@ -38,7 +43,6 @@ public class RealFirstPersonSettingsScreen extends Screen {
     private static final int ACTION_RESET_H = 16;
     private static final int TUNE_H = 16;
 
-    private final Screen parent;
     private final List<Hit> hits = new ArrayList<>();
     private int scroll;
     private int maxScroll;
@@ -52,8 +56,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
     private RfpTunePose tunePose = RfpTunePose.STAND;
 
     public RealFirstPersonSettingsScreen(Screen parent) {
-        super(Component.translatable("screen." + Features.MODID + ".real_first_person"));
-        this.parent = parent;
+        super(Component.translatable("screen." + Features.MODID + ".real_first_person"), parent);
     }
 
     public RfpTunePose getTunePose() {
@@ -82,7 +85,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
         scroll = Mth.clamp(scroll, 0, maxScroll);
 
         int doneX = settingsL + (settingsW - 90) / 2;
-        addRenderableWidget(new DarkButton(doneX, height - bottomPad - btnH, 90, btnH,
+        addRenderableWidget(darkButton(doneX, height - bottomPad - btnH, 90, btnH,
                 Component.translatable("gui.done"), this::onClose));
         RfpPoseOverride.set(tunePose);
     }
@@ -156,12 +159,14 @@ public class RealFirstPersonSettingsScreen extends Screen {
         y = drawWrapped(graphics, Component.translatable(FeaturesConfig.rfpHandMode.langKey() + ".desc"),
                 x, y, right - x, 0x808088);
 
+        dirtyDot(graphics, x - 6, y + 4, !FeaturesConfig.rfpHideHead);
         y = drawCheckRow(graphics, x, y, mouseX, mouseY, FeaturesConfig.rfpHideHead,
                 () -> FeaturesConfig.setRfpHideHead(!FeaturesConfig.rfpHideHead),
                 FeaturesConfig.rfpHideHead
                         ? "screen." + Features.MODID + ".real_first_person.hide_head.on"
                         : "screen." + Features.MODID + ".real_first_person.hide_head.off");
 
+        dirtyDot(graphics, x - 6, y + 4, !FeaturesConfig.rfpRenderStuck);
         y = drawCheckRow(graphics, x, y, mouseX, mouseY, FeaturesConfig.rfpRenderStuck,
                 () -> FeaturesConfig.setRfpRenderStuck(!FeaturesConfig.rfpRenderStuck),
                 FeaturesConfig.rfpRenderStuck
@@ -175,19 +180,24 @@ public class RealFirstPersonSettingsScreen extends Screen {
 
         y = drawOffsetSlider(graphics, x, right, y, mouseX, mouseY,
                 "screen." + Features.MODID + ".real_first_person.offset.stand",
-                () -> FeaturesConfig.rfpOffsetStand, FeaturesConfig::setRfpOffsetStand, RfpTunePose.STAND);
+                () -> FeaturesConfig.rfpOffsetStand, FeaturesConfig::setRfpOffsetStand, RfpTunePose.STAND,
+                FeaturesConfig.RFP_DEFAULT_STAND);
         y = drawOffsetSlider(graphics, x, right, y, mouseX, mouseY,
                 "screen." + Features.MODID + ".real_first_person.offset.sneak",
-                () -> FeaturesConfig.rfpOffsetSneak, FeaturesConfig::setRfpOffsetSneak, RfpTunePose.SNEAK);
+                () -> FeaturesConfig.rfpOffsetSneak, FeaturesConfig::setRfpOffsetSneak, RfpTunePose.SNEAK,
+                FeaturesConfig.RFP_DEFAULT_SNEAK);
         y = drawOffsetSlider(graphics, x, right, y, mouseX, mouseY,
                 "screen." + Features.MODID + ".real_first_person.offset.sit",
-                () -> FeaturesConfig.rfpOffsetSit, FeaturesConfig::setRfpOffsetSit, RfpTunePose.SIT);
+                () -> FeaturesConfig.rfpOffsetSit, FeaturesConfig::setRfpOffsetSit, RfpTunePose.SIT,
+                FeaturesConfig.RFP_DEFAULT_SIT);
         y = drawOffsetSlider(graphics, x, right, y, mouseX, mouseY,
                 "screen." + Features.MODID + ".real_first_person.offset.swim",
-                () -> FeaturesConfig.rfpOffsetSwim, FeaturesConfig::setRfpOffsetSwim, RfpTunePose.SWIM);
+                () -> FeaturesConfig.rfpOffsetSwim, FeaturesConfig::setRfpOffsetSwim, RfpTunePose.SWIM,
+                FeaturesConfig.RFP_DEFAULT_SWIM);
         y = drawOffsetSlider(graphics, x, right, y, mouseX, mouseY,
                 "screen." + Features.MODID + ".real_first_person.offset.elytra",
-                () -> FeaturesConfig.rfpOffsetElytra, FeaturesConfig::setRfpOffsetElytra, RfpTunePose.ELYTRA);
+                () -> FeaturesConfig.rfpOffsetElytra, FeaturesConfig::setRfpOffsetElytra, RfpTunePose.ELYTRA,
+                FeaturesConfig.RFP_DEFAULT_ELYTRA);
 
         y += 8;
         y = drawSection(graphics, x, y, "screen." + Features.MODID + ".real_first_person.compat");
@@ -206,13 +216,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
 
         graphics.disableScissor();
 
-        if (maxScroll > 0) {
-            int trackH = panelBottom - panelTop - 8;
-            int thumbH = Math.max(12, trackH * trackH / (trackH + maxScroll));
-            int thumbY = panelTop + 4 + (trackH - thumbH) * scroll / maxScroll;
-            graphics.fill(settingsR - 5, panelTop + 4, settingsR - 3, panelBottom - 4, 0xFF2A2A32);
-            graphics.fill(settingsR - 5, thumbY, settingsR - 3, thumbY + thumbH, ACCENT);
-        }
+        ScrollBar.draw(graphics, settingsR, panelTop, panelBottom, scroll, maxScroll, ACCENT, v -> scroll = v);
 
         super.render(graphics, mouseX, mouseY, partialTick);
     }
@@ -253,6 +257,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
         g.drawCenteredString(font,
                 Component.translatable("screen." + Features.MODID + ".real_first_person.offsets.reset"),
                 left + w / 2, y + (h - 8) / 2, hover ? 0xF0F0F0 : 0xC07070);
+        tipKey(left, y, w, h, "screen." + Features.MODID + ".real_first_person.offsets.reset");
         hits.add(new Hit(left, y, w, h, FeaturesConfig::resetRfpOffsets));
         return y + h + 6;
     }
@@ -280,6 +285,10 @@ public class RealFirstPersonSettingsScreen extends Screen {
             }
             g.drawCenteredString(font, Component.translatable(mode.langKey()),
                     x + w / 2, y + (CHOICE_H - 8) / 2, active ? 0xF0F0F0 : 0x9A9AA8);
+            if (active) {
+                dirtyDot(g, x + 2, y + 2, mode != RfpHandMode.OFF);
+            }
+            tipKey(x, y, w, CHOICE_H, mode.langKey());
             hits.add(new Hit(x, y, w, CHOICE_H, () -> FeaturesConfig.setRfpHandMode(mode)));
             x += w + gap;
         }
@@ -288,8 +297,10 @@ public class RealFirstPersonSettingsScreen extends Screen {
 
     private int drawOffsetSlider(GuiGraphics g, int left, int right, int y, int mx, int my,
                                  String labelKey, Supplier<Float> getter, Consumer<Float> setter,
-                                 RfpTunePose pose) {
+                                 RfpTunePose pose, float def) {
         boolean selected = tunePose == pose;
+        dirtyDot(g, left - 6, y + 2, Math.abs(getter.get() - def) > 0.011f);
+        tipKey(left, y, right - left, 22, labelKey);
         g.drawString(font, Component.translatable(labelKey), left, y, selected ? ACCENT : 0xC8C8D0, false);
         String value = String.format(Locale.ROOT, "%.2f", getter.get());
         g.drawString(font, value, right - font.width(value), y, 0x909098, false);
@@ -303,15 +314,13 @@ public class RealFirstPersonSettingsScreen extends Screen {
         int trackR = right;
         int trackY = y;
         float t = offsetToSlider(getter.get());
-        int thumbX = trackL + Math.round((trackR - trackL - 4) * Mth.clamp(t, 0f, 1f));
-
-        g.fill(trackL, trackY + 5, trackR, trackY + 7, 0xFF2A2A32);
-        g.fill(thumbX, trackY + 2, thumbX + 4, trackY + SLIDER_H - 2, selected ? ACCENT : 0xFF6A8A9A);
+        SliderPaint.thinThumb(g, trackL, trackR, trackY, SLIDER_H, t, selected, ACCENT);
 
         hits.add(new Hit(trackL, trackY, trackR - trackL, SLIDER_H, () -> {
             tunePose = pose;
             RfpPoseOverride.set(pose);
             dragging = new SliderDrag(trackL, trackR, setter);
+            setDragging(true);
             applySlider(mx, dragging);
         }));
         return y + SLIDER_H + 4;
@@ -335,8 +344,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
     }
 
     private int drawSection(GuiGraphics g, int x, int y, String key) {
-        g.drawString(font, Component.translatable(key), x, y, 0xC8C8D0, false);
-        return y + 12;
+        return SectionHeader.draw(g, font, x, y, Component.translatable(key));
     }
 
     private int drawCheckRow(GuiGraphics g, int x, int y, int mx, int my, boolean on,
@@ -344,18 +352,13 @@ public class RealFirstPersonSettingsScreen extends Screen {
         int color = on ? 0xF0F0F0 : 0x9A9AA8;
         drawCheck(g, x, y + 3, on);
         g.drawString(font, Component.translatable(labelKey), x + CHECK + 6, y + 3, color, false);
+        tipKey(x, y, settingsR - 12 - x, ROW, labelKey);
         hits.add(new Hit(x, y, settingsR - 12 - x, ROW - 2, action));
         return y + ROW;
     }
 
     private static void drawCheck(GuiGraphics g, int x, int y, boolean on) {
-        g.fill(x, y, x + CHECK, y + 1, 0xFFE8E8F0);
-        g.fill(x, y + CHECK - 1, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        g.fill(x, y, x + 1, y + CHECK, 0xFFE8E8F0);
-        g.fill(x + CHECK - 1, y, x + CHECK, y + CHECK, 0xFFE8E8F0);
-        if (on) {
-            g.fill(x + 2, y + 2, x + CHECK - 2, y + CHECK - 2, ACCENT);
-        }
+        Checks.box(g, x, y, CHECK, on, ACCENT);
     }
 
     private boolean insideSettings(double mx, double my) {
@@ -404,9 +407,7 @@ public class RealFirstPersonSettingsScreen extends Screen {
     @Override
     public void onClose() {
         RfpPoseOverride.clear();
-        if (minecraft != null) {
-            minecraft.setScreen(parent);
-        }
+        super.onClose();
     }
 
     @Override
@@ -431,31 +432,14 @@ public class RealFirstPersonSettingsScreen extends Screen {
     private record SliderDrag(int left, int right, Consumer<Float> setter) {
     }
 
-    private class DarkButton extends AbstractWidget {
-        private final Runnable action;
 
-        private DarkButton(int x, int y, int w, int h, Component message, Runnable action) {
-            super(x, y, w, h, message);
-            this.action = action;
-        }
+    @Override
+    protected int buttonAccent() {
+        return ACCENT;
+    }
 
-        @Override
-        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-            boolean hover = isHoveredOrFocused();
-            graphics.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF2A3A48 : 0xFF1A1A22);
-            FeaturesScreen.drawGradientBorder(graphics, getX(), getY(), width, height, ACCENT, 0xFF0A0A0E);
-            graphics.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2,
-                    hover ? 0xF0F0F0 : 0xC0C0C8);
-        }
-
-        @Override
-        public void onClick(double mouseX, double mouseY) {
-            action.run();
-        }
-
-        @Override
-        protected void updateWidgetNarration(NarrationElementOutput output) {
-            defaultButtonNarrationText(output);
-        }
+    @Override
+    protected int buttonHover() {
+        return 0xFF2A3A48;
     }
 }

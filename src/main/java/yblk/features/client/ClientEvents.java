@@ -11,10 +11,30 @@ import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import yblk.features.Features;
+import yblk.features.client.ui.BaseSettingsScreen;
+import yblk.features.client.ui.ScrollBar;
 
 @Mod.EventBusSubscriber(modid = Features.MODID, value = Dist.CLIENT)
 public final class ClientEvents {
     private ClientEvents() {
+    }
+
+    @SubscribeEvent
+    public static void onScrollSeal(ScreenEvent.Render.Post event) {
+        ScrollBar.seal(event.getScreen() instanceof BaseSettingsScreen);
+    }
+
+    @SubscribeEvent
+    public static void onScrollGrab(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (event.getButton() != 0 || !(event.getScreen() instanceof BaseSettingsScreen screen)) {
+            return;
+        }
+        if (screen.scrollGrabBlocked()) {
+            return;
+        }
+        if (ScrollBar.press(event.getMouseX(), event.getMouseY())) {
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent
